@@ -26,6 +26,7 @@ type
       AOutputType: TOutputType);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
+    procedure FormShow(Sender: TObject);
   private
     { Private declarations }
     procedure KeyEventHandler(var Msg: TMessage); message KeyEvent;
@@ -96,6 +97,11 @@ end;
 procedure TForm1.FormDestroy(Sender: TObject);
 begin
   StopHook;
+end;
+
+procedure TForm1.FormShow(Sender: TObject);
+begin
+  ShowWindow(Application.Handle, SW_HIDE);
 end;
 
 procedure TForm1.KeyEventHandler(var Msg: TMessage);
