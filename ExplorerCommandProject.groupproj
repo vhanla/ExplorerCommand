@@ -1,0 +1,48 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{310C8440-FB7D-4877-94D7-3051EF6DF673}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="ExplorerCommand.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="HotkeyHook.dproj">
+            <Dependencies>ExplorerCommand.dproj</Dependencies>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="ExplorerCommand">
+        <MSBuild Projects="ExplorerCommand.dproj"/>
+    </Target>
+    <Target Name="ExplorerCommand:Clean">
+        <MSBuild Projects="ExplorerCommand.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="ExplorerCommand:Make">
+        <MSBuild Projects="ExplorerCommand.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="HotkeyHook" DependsOnTargets="ExplorerCommand">
+        <MSBuild Projects="HotkeyHook.dproj"/>
+    </Target>
+    <Target Name="HotkeyHook:Clean" DependsOnTargets="ExplorerCommand:Clean">
+        <MSBuild Projects="HotkeyHook.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="HotkeyHook:Make" DependsOnTargets="ExplorerCommand:Make">
+        <MSBuild Projects="HotkeyHook.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="ExplorerCommand;HotkeyHook"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="ExplorerCommand:Clean;HotkeyHook:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="ExplorerCommand:Make;HotkeyHook:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>
