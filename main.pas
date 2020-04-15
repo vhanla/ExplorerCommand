@@ -27,9 +27,11 @@ type
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormShow(Sender: TObject);
+    procedure FormKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
   private
     { Private declarations }
     procedure KeyEventHandler(var Msg: TMessage); message KeyEvent;
+    procedure OnFocusLost(Sender: TObject);
   protected
     procedure CreateParams(var Params: TCreateParams); override;
   public
@@ -92,11 +94,21 @@ end;
 procedure TForm1.FormCreate(Sender: TObject);
 begin
   StartHook;
+
+  KeyPreview := True;
+
+  Application.OnDeactivate := OnFocusLost;
 end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
 begin
   StopHook;
+end;
+
+procedure TForm1.FormKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
+begin
+  if key = VK_ESCAPE then
+    Hide;
 end;
 
 procedure TForm1.FormShow(Sender: TObject);
@@ -106,7 +118,17 @@ end;
 
 procedure TForm1.KeyEventHandler(var Msg: TMessage);
 begin
+  if not Visible then
+  begin
+    Show;
+    SetForegroundWindow(Handle);
+  end;
 
+end;
+
+procedure TForm1.OnFocusLost(Sender: TObject);
+begin
+  Hide;
 end;
 
 end.

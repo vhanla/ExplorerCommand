@@ -149,8 +149,8 @@ begin
           SendMessageTimeout(ParentHandle, KeyEvent, wParam, Windows.LPARAM(PChar(command)), SMTO_NORMAL, 500, nil);
           if GetForegroundWindow <> ParentHandle then
           begin
-            ShowWindow(ParentHandle, SW_SHOWNORMAL);
-            SetForegroundWindow(ParentHandle);
+//            ShowWindow(ParentHandle, SW_SHOWNORMAL);
+//            SetForegroundWindow(ParentHandle);
           end;
 
           Exit(1);
