@@ -41,11 +41,12 @@ object Form1: TForm1
   end
   object BCEditor1: TBCEditor
     Left = 0
-    Top = 32
+    Top = 64
     Width = 652
-    Height = 268
+    Height = 236
     ActiveLine.Indicator.Visible = False
     Align = alClient
+    BorderStyle = bsNone
     CodeFolding.Hint.Font.Charset = DEFAULT_CHARSET
     CodeFolding.Hint.Font.Color = clWindowText
     CodeFolding.Hint.Font.Height = -11
@@ -84,6 +85,7 @@ object Form1: TForm1
     Minimap.Font.Height = -1
     Minimap.Font.Name = 'Courier New'
     Minimap.Font.Style = []
+    ReadOnly = True
     TabOrder = 1
     TokenInfo.Font.Charset = DEFAULT_CHARSET
     TokenInfo.Font.Color = clWindowText
@@ -95,7 +97,6 @@ object Form1: TForm1
     TokenInfo.Title.Font.Height = -11
     TokenInfo.Title.Font.Name = 'Courier New'
     TokenInfo.Title.Font.Style = []
-    ExplicitHeight = 287
   end
   object StatusBar1: TStatusBar
     Left = 0
@@ -106,9 +107,23 @@ object Form1: TForm1
       item
         Width = 50
       end>
-    ExplicitLeft = 336
-    ExplicitTop = 168
-    ExplicitWidth = 0
+  end
+  object SearchBox1: TSearchBox
+    Left = 0
+    Top = 32
+    Width = 652
+    Height = 32
+    Align = alTop
+    Font.Charset = ANSI_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -21
+    Font.Name = 'Consolas'
+    Font.Style = []
+    ParentFont = False
+    TabOrder = 3
+    Text = 'SearchBox1'
+    Visible = False
+    ExplicitTop = 26
   end
   object DosCommand1: TDosCommand
     InputToOutput = False
@@ -261,5 +276,11 @@ object Form1: TForm1
       0000000000000000000000000000000000000000000000000000000000000000
       0000000000000000000000000000000000000000000000000000000000000000
       000000000000}
+  end
+  object Timer1: TTimer
+    Interval = 100
+    OnTimer = Timer1Timer
+    Left = 320
+    Top = 168
   end
 end
