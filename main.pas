@@ -33,7 +33,8 @@ type
   private
     { Private declarations }
     lastExplorerHandle: HWND;
-    lstExplorer: TStringList;
+    lastExplorerPath: String;
+    lstExplorerPath: TStringList;
     lstExplorerWnd: TStringList;
     lstExplorerItem: TStringList;
 
@@ -74,11 +75,11 @@ begin
     begin
       ListExplorerInstances;
       BCEditor1.Text := 'Current HWND: ' + IntToStr(lastExplorerHandle) + '';
-      for I := 0 to lstExplorer.Count - 1 do
+      for I := 0 to lstExplorerPath.Count - 1 do
       begin
         if lstExplorerWnd[I] = IntToStr(lastExplorerHandle)  then
 
-        BCEditor1.Text := BCEditor1.Text + #13#10 + lstExplorer[I] + ' ' + lstExplorerWnd[i];
+        BCEditor1.Text := BCEditor1.Text + #13#10 + lstExplorerPath[I] + ' ' + lstExplorerWnd[i];
       end;
     end
     else if ButtonedEdit1.Text = 'items' then
@@ -98,9 +99,12 @@ begin
 
     try
       BCEditor1.Lines.Clear;
-      DosCommand1.CurrentDir := ExtractFilePath(ParamStr(0));
-      DosCommand1.CommandLine := 'cmd.exe /c ' + ButtonedEdit1.Text;
-      DosCommand1.Execute;
+      if DirectoryExists(lastExplorerPath) then
+      begin
+        DosCommand1.CurrentDir := lastExplorerPath;
+        DosCommand1.CommandLine := 'cmd.exe /c ' + ButtonedEdit1.Text;
+        DosCommand1.Execute;
+      end;
     except
       //on E:Exception do
 
@@ -142,7 +146,7 @@ begin
 
   KeyPreview := True;
 
-  lstExplorer := TStringList.Create;
+  lstExplorerPath := TStringList.Create;
   lstExplorerWnd := TStringList.Create;
   lstExplorerItem := TStringList.Create;
 
@@ -152,7 +156,7 @@ end;
 procedure TForm1.FormDestroy(Sender: TObject);
 begin
   lstExplorerWnd.Free;
-  lstExplorer.Free;
+  lstExplorerPath.Free;
   lstExplorerItem.Free;
 
   StopHook;
@@ -177,6 +181,7 @@ var
 begin
   command := PChar(Msg.LParam);
   lastExplorerHandle := StrToInt(command);
+  lastExplorerPath := '';
 
   if not Visible then
   begin
@@ -191,7 +196,10 @@ begin
     for I := 0 to lstExplorerWnd.Count - 1 do
     begin
       if lstExplorerWnd[i] = IntToStr(lastExplorerHandle) then
+      begin
+        lastExplorerPath := lstExplorerPath[I];
         StatusBar1.Panels[0].Text := lstExplorerItem[i];
+      end;
     end;
   end;
 
@@ -224,8 +232,8 @@ var
   CurTime: Int64;
 begin
   Result := 0;
-  lstExplorer.BeginUpdate;
-  lstExplorer.Clear;
+  lstExplorerPath.BeginUpdate;
+  lstExplorerPath.Clear;
   lstExplorerWnd.BeginUpdate;
   lstExplorerWnd.Clear;
   lstExplorerItem.BeginUpdate;
@@ -279,7 +287,7 @@ begin
                         begin
                           folderPath := StrAlloc(MAX_PATH);
                           if SHGetPathFromIDList(ItemIDList2, folderPath) then
-                            lstExplorer.Add(folderPath);
+                            lstExplorerPath.Add(folderPath);
                           SHGetMalloc(AMalloc);
                           AMalloc.Free(ItemIDList2);
                           StrDispose(folderPath);
@@ -298,6 +306,11 @@ begin
 
               end;
             end;
+            // make sure the other lists are even to found explorer
+            if lstExplorerWnd.Count > lstExplorerPath.Count then
+              lstExplorerPath.Add('');
+            if lstExplorerWnd.Count > lstExplorerItem.Count then
+              lstExplorerPath.Add('');
           end;
           except
           end;
@@ -310,7 +323,7 @@ begin
   CoUninitialize; // <-- free memory
   lstExplorerItem.EndUpdate;
   lstExplorerWnd.EndUpdate;
-  lstExplorer.EndUpdate;
+  lstExplorerPath.EndUpdate;
 end;
 
 procedure TForm1.OnFocusLost(Sender: TObject);
