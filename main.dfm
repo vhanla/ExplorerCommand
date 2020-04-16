@@ -123,7 +123,6 @@ object Form1: TForm1
     TabOrder = 3
     Text = 'SearchBox1'
     Visible = False
-    ExplicitTop = 26
   end
   object DosCommand1: TDosCommand
     InputToOutput = False
@@ -276,11 +275,5 @@ object Form1: TForm1
       0000000000000000000000000000000000000000000000000000000000000000
       0000000000000000000000000000000000000000000000000000000000000000
       000000000000}
-  end
-  object Timer1: TTimer
-    Interval = 100
-    OnTimer = Timer1Timer
-    Left = 320
-    Top = 168
   end
 end

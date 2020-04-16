@@ -19,7 +19,6 @@ type
     BCEditor1: TBCEditor;
     StatusBar1: TStatusBar;
     SearchBox1: TSearchBox;
-    Timer1: TTimer;
     procedure ButtonedEdit1Enter(Sender: TObject);
     procedure ButtonedEdit1KeyUp(Sender: TObject; var Key: Word;
       Shift: TShiftState);
@@ -31,7 +30,6 @@ type
     procedure FormDestroy(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure FormKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
-    procedure Timer1Timer(Sender: TObject);
   private
     { Private declarations }
     lastExplorerHandle: HWND;
@@ -319,16 +317,6 @@ procedure TForm1.OnFocusLost(Sender: TObject);
 begin
   StatusBar1.Panels[0].Text := '';
   Hide;
-end;
-
-procedure TForm1.Timer1Timer(Sender: TObject);
-begin
-{TODO: improve detection for other reasons, like keeping it even though it changes to other explorer instance}
-  if (GetForegroundWindow <> Self.Handle)
-  then
-  begin
-    lastExplorerHandle := GetForegroundWindow;
-  end;
 end;
 
 end.
