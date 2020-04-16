@@ -5,15 +5,16 @@ Explorer Command is a third party tool that will add command line to interact wi
 
 The purpose is to add capabilities like:
 
-- Run DOS/PowerShell commands in current directory
-- Open With via command line
-- Show Git status, as well common commands
-- Preview files
+- [x] Run DOS commands in current directory
+- [ ] Run PowerShell commands in current directory
+- [ ] Open With via command line
+- [ ] Show Git status, as well common commands
+- [ ] Preview files
 
 Default Hotkey [ctrl-shift-p]
 
 ### Future Plans:
-- Extensible via Python plugins
+- [ ] Extensible via Python plugins
 
 ### Disclaimer
 
