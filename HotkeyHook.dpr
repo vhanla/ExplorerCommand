@@ -118,90 +118,58 @@ begin
   case nCode of
     HC_ACTION:
     begin
-      currWnd := GetForegroundWindow;
-      if currWnd > 0 then
-      begin
-        GetClassName(currWnd, AppClassName, 255);
-        if AppClassName <> 'CabinetWClass' then
-        begin
-          Result := CallNextHookEx(lpHookRec^.HookHandle, nCode, wParam, lParam);
-          Exit;
-        end;
-      end;
 
-      ParentHandle := FindWindow('ExplorerCommandWnd', nil);
-      if ParentHandle > 0 then
+      if wParam = WM_KEYDOWN then
       begin
         hs := PKBDLLHOOKSTRUCT(lParam);
         CtrlPressed := GetAsyncKeyState(VK_CONTROL) and $8000 <> 0;
         ShiftPressed := GetAsyncKeyState(VK_SHIFT) and $8000 <> 0;
         AltPressed := GetAsyncKeyState(VK_MENU) and $8000 <> 0;
 
-//        if ((hs^.vkCode = Ord('P')) and ((hs^.flags and LLKHF_ALTDOWN)<>0))
-//        or ((hs^.vkCode = Ord('P')) and ShiftPressed and ((hs^.flags and LLKHF_ALTDOWN)<>0))
         if ((hs^.vkCode = Ord('P')) and ShiftPressed and CtrlPressed)
         then
         begin
-          //SendMessageTimeout(ParentHandle, KeyEvent, wParam, lParam, SMTO_NORMAL, 500, nil);
-          if ShiftPressed then command := 'prev' else command := 'next';
 
-          if (hs^.flags and LLKHF_UP) <> 0 then
-          SendMessageTimeout(ParentHandle, KeyEvent, wParam, Windows.LPARAM(PChar(command)), SMTO_NORMAL, 500, nil);
-          if GetForegroundWindow <> ParentHandle then
+          currWnd := GetForegroundWindow;
+          if currWnd > 0 then
           begin
-//            ShowWindow(ParentHandle, SW_SHOWNORMAL);
-//            SetForegroundWindow(ParentHandle);
+            GetClassName(currWnd, AppClassName, 255);
+            if AppClassName <> 'CabinetWClass' then
+            begin
+              Result := CallNextHookEx(lpHookRec^.HookHandle, nCode, wParam, lParam);
+              Exit;
+            end;
           end;
 
-          Exit(1);
+          ParentHandle := FindWindow('ExplorerCommandWnd', nil);
+          if ParentHandle > 0 then
+          begin
+
+            //if ShiftPressed then command := 'prev' else command := 'next';
+            command := IntToStr(GetForegroundWindow);
+
+            //if (hs^.flags and LLKHF_UP) <> 0 then
+            SendMessageTimeout(ParentHandle, KeyEvent, wParam, Windows.LPARAM(PChar(command)), SMTO_NORMAL, 500, nil);
+//            if GetForegroundWindow <> ParentHandle then
+//            begin
+//              ShowWindow(ParentHandle, SW_SHOWNORMAL);
+//              SetForegroundWindow(ParentHandle);
+//            end;
+
+            Exit(1);
+
+          end;
+
         end;
 
         if (hs^.vkCode = VK_TAB) and ((hs^.flags and LLKHF_UP) <> 0) then
         begin
           //ShowWindow(ParentHandle, SW_HIDE);
         end;
-
-
-        (*SetLength(KeyName, 32);
-        Res := GetKeyNameText(lParam, @KeyName[1], Length(KeyName));
-        ParentHandle := FindWindow('AltTabProHwnd', nil);
-        if ParentHandle <> 0 then
-        begin
-          KeyUp := (lParam and (1 shl 31)) <> 0;
-
-          { Alt Key }
-          AltPressed := False;
-          if (lParam and (1 shl 29)) <> 0 then
-            AltPressed := True;
-
-          { CtrlKey }
-          CtrlPressed := False;
-          if ((GetAsyncKeyState(VK_CONTROL) and (1 shl 15)) <> 0) then
-            CtrlPressed := True;
-
-          { Shift key }
-          ShiftPressed := False;
-          if ((GetAsyncKeyState(VK_SHIFT) and (1 shl 15)) <> 0) then
-            ShiftPressed := True;
-
-          { If KeyUp then increment the key count }
-          if (KeyUp <> False) then
-            Inc(lpHookRec^.KeyCount);
-
-          case wParam of
-            VK_TAB:
-            begin
-
-            end;
-          end;
-
-          SendMessageTimeout(ParentHandle, KeyEvent, wParam, lParam, SMTO_NORMAL, 500, nil);
-        end;*)
-
-        { Allow the keystroke }
-      //  Result := 0;
       end;
-      Result := CallNextHookEx(lpHookRec^.HookHandle, nCode, wParam, lParam);
+
+
+//      Result := CallNextHookEx(lpHookRec^.HookHandle, nCode, wParam, lParam);
     end;
 
     HC_NOREMOVE:
@@ -213,17 +181,19 @@ begin
       Exit;
     end;
   end;
-  if nCode < 0 then
+//  if nCode < 0 then
     Result := CallNextHookEx(lpHookRec^.HookHandle, nCode, wParam, lParam);
 end;
 
-procedure StartHook; stdcall;
+function StartHook:BOOL stdcall;
 begin
+  Result := False;
   { If we have a process wide memory variable and the hook has not already bee set }
   if ((lpHookRec <> nil) and (lpHookRec^.HookHandle = 0)) then
   begin
     { Set the hook and remember our hook handle }
     lpHookRec^.HookHandle := SetWindowsHookEx(WH_KEYBOARD_LL, @KeyboardProc, HInstance, 0);
+    Result := True;
   end;
 end;
 
