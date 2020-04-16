@@ -66,4 +66,4 @@ __recovery/
 *.stat
 
 Win32
-
+*.bak
