@@ -7,7 +7,8 @@ uses
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, SynEdit, DosCommand, rkShellPath, rkEdit, UCL.Form,
   Vcl.StdCtrls, Vcl.ExtCtrls, cyButtonedEdit, System.ImageList, Vcl.ImgList,
   BCEditor.Highlighter, BCEditor.Editor, Vcl.ComCtrls, Vcl.WinXCtrls,
-  VirtualTrees, TlHelp32, ShellApi, ShDocVw, ActiveX, ShlObj, IniFiles;
+  VirtualTrees, TlHelp32, ShellApi, ShDocVw, ActiveX, ShlObj, IniFiles,
+  Vcl.Menus;
 
 const
   KeyEvent = WM_USER + 1;
@@ -19,6 +20,11 @@ type
     BCEditor1: TBCEditor;
     StatusBar1: TStatusBar;
     SearchBox1: TSearchBox;
+    TrayIcon1: TTrayIcon;
+    PopupMenu1: TPopupMenu;
+    Exit1: TMenuItem;
+    Show1: TMenuItem;
+    N1: TMenuItem;
     procedure ButtonedEdit1Enter(Sender: TObject);
     procedure ButtonedEdit1KeyUp(Sender: TObject; var Key: Word;
       Shift: TShiftState);
@@ -30,6 +36,8 @@ type
     procedure FormDestroy(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure FormKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure Show1Click(Sender: TObject);
+    procedure Exit1Click(Sender: TObject);
   private
     { Private declarations }
     lastExplorerHandle: HWND;
@@ -61,7 +69,7 @@ implementation
 
 procedure TForm1.ButtonedEdit1Enter(Sender: TObject);
 begin
- ButtonedEdit1.RightButton.Visible := True;
+// ButtonedEdit1.RightButton.Visible := True;
 end;
 
 procedure TForm1.ButtonedEdit1KeyUp(Sender: TObject; var Key: Word;
@@ -136,6 +144,11 @@ begin
   BCEditor1.Perform(EM_SCROLL, SB_LINEDOWN, 0);
 end;
 
+procedure TForm1.Exit1Click(Sender: TObject);
+begin
+  Close;
+end;
+
 procedure TForm1.FormCreate(Sender: TObject);
 begin
   if not StartHook then
@@ -187,7 +200,9 @@ begin
   begin
     Show;
     SetForegroundWindow(Handle);
-    //SwitchToThisWindow(Handle, True);
+    SwitchToThisWindow(Handle, True);
+
+    ButtonedEdit1.SetFocus;
 
     Ret := ListExplorerInstances;
 
@@ -330,6 +345,11 @@ procedure TForm1.OnFocusLost(Sender: TObject);
 begin
   StatusBar1.Panels[0].Text := '';
   Hide;
+end;
+
+procedure TForm1.Show1Click(Sender: TObject);
+begin
+  Show;
 end;
 
 end.

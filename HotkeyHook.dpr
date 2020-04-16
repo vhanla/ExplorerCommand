@@ -56,6 +56,8 @@ var
   lpHookRec: PHookRec;
   InvalidCombinations: TSystemKeyCombinations;
 
+procedure SwitchToThisWindow(h1: hWnd; x: bool); stdcall;
+  external user32 Name 'SwitchToThisWindow';
 { Pointer to our hook record }
 procedure MapFileMemory (dwAllocSize: DWORD);
 begin
@@ -150,11 +152,12 @@ begin
 
             //if (hs^.flags and LLKHF_UP) <> 0 then
             SendMessageTimeout(ParentHandle, KeyEvent, wParam, Windows.LPARAM(PChar(command)), SMTO_NORMAL, 500, nil);
-//            if GetForegroundWindow <> ParentHandle then
-//            begin
-//              ShowWindow(ParentHandle, SW_SHOWNORMAL);
-//              SetForegroundWindow(ParentHandle);
-//            end;
+            if GetForegroundWindow <> ParentHandle then
+            begin
+              //ShowWindow(ParentHandle, SW_SHOWNORMAL);
+              SetForegroundWindow(ParentHandle);
+              SwitchToThisWindow(ParentHandle, True);
+            end;
 
             Exit(1);
 
