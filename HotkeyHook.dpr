@@ -18,6 +18,7 @@ uses
 
 const
   KeyEvent = WM_USER + 1;
+  KeyEventAll = WM_USER + 2;
   LLKHF_ALTDOWN = $20;
   LLKHF_UP = $80;
 
@@ -38,6 +39,8 @@ type
     AppHandle: HWND;
     CtrlWinHandle: HWND;
     KeyCount: DWORD;
+    CtrlDown: BOOL;
+    ShiftDown: BOOL;
   end;
 
   TSystemKeyCombination = (skLWin,
@@ -55,6 +58,9 @@ var
   hObjHandle: THandle; { Variable for the file mappgin object }
   lpHookRec: PHookRec;
   InvalidCombinations: TSystemKeyCombinations;
+  AltPressed: BOOL;
+  CtrlPressed: BOOL;
+  ShiftPressed: BOOL;
 
 procedure SwitchToThisWindow(h1: hWnd; x: bool); stdcall;
   external user32 Name 'SwitchToThisWindow';
@@ -101,12 +107,48 @@ begin
   Result := lpHookRec;
 end;
 
+function KeyProc(nCode: Integer; wParam: WPARAM; lParam: LPARAM): LRESULT; stdcall;
+begin
+
+  /// If code is less than zero, the hook procedure must pass the message
+  ///  to the CallNextHookEx function without further processing and should return
+  ///  the value returned by CallNextHookEx.
+
+  if nCode < 0 then
+  begin
+    Result := CallNextHookEx(lpHookRec^.HookHandle, nCode, wParam, lParam);
+    Exit;
+  end;
+
+  /// HC_ACTION = 0 : The wParam and lParam parameters contain information
+  ///  about a keystroke message.
+
+  if nCode = HC_ACTION then
+  begin
+
+  end
+
+  /// HC_NOREMOVE = 3 : The wParam and lParam parameters contain information
+  ///  about a keystroke message, and the keystroke message has not been removed
+  ///  from the message queue. (An application called the PeekMessage function,
+  ///  specifying the PM_NOREMOVE flag).
+  else if nCode = HC_NOREMOVE then
+  begin
+
+  end;
+
+
+
+
+
+end;
+
 function KeyboardProc(nCode: Integer; wParam: WPARAM; lParam: LPARAM): LRESULT; stdcall;
 var
   KeyUp: BOOL;
-  AltPressed: BOOL;
-  CtrlPressed: BOOL;
-  ShiftPressed: BOOL;
+//  AltPressed: BOOL;
+//  CtrlPressed: BOOL;
+//  ShiftPressed: BOOL;
   KeyName: string;
   Res: Integer;
   ParentHandle: HWND;
@@ -118,28 +160,80 @@ begin
   Result := 0;
 
   case nCode of
-    HC_ACTION:
+    HC_ACTION: // HC_ACTION is the only allowed for WH_KEYBOARD_LL
     begin
 
-      if wParam = WM_KEYDOWN then
-      begin
-        hs := PKBDLLHOOKSTRUCT(lParam);
-        CtrlPressed := GetAsyncKeyState(VK_CONTROL) and $8000 <> 0;
-        ShiftPressed := GetAsyncKeyState(VK_SHIFT) and $8000 <> 0;
-        AltPressed := GetAsyncKeyState(VK_MENU) and $8000 <> 0;
+      hs := PKBDLLHOOKSTRUCT(lParam);
 
-        if ((hs^.vkCode = Ord('P')) and ShiftPressed and CtrlPressed)
-        then
+      if (wParam = WM_KEYDOWN) or (wParam = WM_SYSKEYDOWN) then
+      begin
+//        OutputDebugString(PChar(IntToStr(hs^.vkcode)));
+        if (hs^.vkCode = VK_SHIFT) or (hs^.vkCode = VK_LSHIFT) or (hs^.vkCode = VK_RSHIFT) then
+        begin
+//          lpHookRec^.CtrlDown := True;
+          ShiftPressed := True;
+//          OutputDebugString('ShiftPressed');
+
+        end;
+
+        if (hs^.vkCode = VK_CONTROL) or (hs^.vkCode = VK_LCONTROL) or (hs^.vkCode = VK_RCONTROL) then
+        begin
+//          lpHookRec^.ShiftDown := True;
+          CtrlPressed := True;
+//          OutputDebugString('CtrlPressed');
+        end;
+      end;
+
+      if (wParam = WM_KEYUP) or (wParam = WM_SYSKEYUP) then
+      begin
+
+        /// NOTE: When this callback function is called in response to a change
+        ///  in the state of a key, the callback function is called before the
+        ///  asynchronous state of the key is updated. Consequently, the
+        ///  asynchronous state of the key cannot be determined by calling
+        ///  GetAsyncKeyState from within this callback
+        ///  HOWEVER, this works :P
+//        CtrlPressed := GetAsyncKeyState(VK_CONTROL) and $8000 <> 0;
+//        ShiftPressed := GetAsyncKeyState(VK_SHIFT) and $8000 <> 0;
+//        AltPressed := GetAsyncKeyState(VK_MENU) and $8000 <> 0;
+
+        if (hs^.vkCode = VK_SHIFT) or (hs^.vkCode = VK_LSHIFT) or (hs^.vkCode = VK_RSHIFT) then
+        begin
+//          lpHookRec^.CtrlDown := False;
+          ShiftPressed := False;
+//          OutputDebugString('CtrlUnpressed');
+        end;
+
+        if (hs^.vkCode = VK_CONTROL) or (hs^.vkCode = VK_LCONTROL) or (hs^.vkCode = VK_RCONTROL) then
+        begin
+//          lpHookRec^.ShiftDown := False;
+          CtrlPressed := False;
+//          OutputDebugString('ShiftUnpressed');
+        end;
+
+//########### Actual Hotkey overrides assignments ###########
+        if ((hs^.vkCode = Ord('P')) and ShiftPressed and CtrlPressed) then
+//        if ((hs^.vkCode = Ord('P')) and CtrlPressed and (hs^.flags and LLKHF_ALTDOWN = 1)) then
+//        if ((hs^.vkCode = Ord('P')) and lpHookRec^.CtrlDown and lpHookRec^.ShiftDown) then
+//        if hs^.vkCode = VK_SPACE then
         begin
 
           currWnd := GetForegroundWindow;
           if currWnd > 0 then
           begin
             GetClassName(currWnd, AppClassName, 255);
-            if AppClassName <> 'CabinetWClass' then
+            // Let's also show when IFileDialog variants are shown (Open Save Dialog)
+            var isFileDialog := FindWindowEx(currWnd, 0, 'DUIViewWndClassName', nil);
+            if isFileDialog > 0 then
+              isFileDialog := FindWindowEx(isFileDialog, 0, 'DirectUIHWND', nil);
+
+            if (AppClassName <> 'CabinetWClass') then
             begin
+              if isFileDialog <= 0 then
+              begin
               Result := CallNextHookEx(lpHookRec^.HookHandle, nCode, wParam, lParam);
               Exit;
+              end;
             end;
           end;
 
@@ -151,41 +245,73 @@ begin
             command := IntToStr(GetForegroundWindow);
 
             //if (hs^.flags and LLKHF_UP) <> 0 then
-            SendMessageTimeout(ParentHandle, KeyEvent, wParam, Windows.LPARAM(PChar(command)), SMTO_NORMAL, 500, nil);
-            if GetForegroundWindow <> ParentHandle then
-            begin
-              //ShowWindow(ParentHandle, SW_SHOWNORMAL);
-              SetForegroundWindow(ParentHandle);
-              SwitchToThisWindow(ParentHandle, True);
-            end;
 
-            Exit(1);
+            /// The hook procedure should process a message in less time than the data entry specified in the LowLevelHooksTimeout value in the following registry key:
+            ///  HKEY_CURRENT_USER\Control Panel\Desktop
+            ///  The value is in milliseconds. If the hook procedure times out, the system passes the message to the
+            ///  next hook. However, on Windows 7 and later, the hook is silently removed without being called.
+            ///  There is no way for the application to know whether the hook is removed.
+            //SendMessageTimeout(ParentHandle, KeyEvent, wParam, Windows.LPARAM(PChar(command)), SMTO_NORMAL, 500, nil);
+            PostMessage(ParentHandle, KeyEvent, wParam, Windows.LPARAM(PChar(command)));
+
+//            if GetForegroundWindow <> ParentHandle then
+//            begin
+//              //ShowWindow(ParentHandle, SW_SHOWNORMAL);
+//              SetForegroundWindow(ParentHandle);
+//              SwitchToThisWindow(ParentHandle, True);
+//            end;
+
+//            Exit(1);
 
           end;
 
-        end;
-
-        if (hs^.vkCode = VK_TAB) and ((hs^.flags and LLKHF_UP) <> 0) then
+        end
+//        VK_OEM_1: Used for the 'ñÑ' key.
+//        VK_OEM_2: Used for the 'çÇ' key.
+//        VK_OEM_3: Used for the 'ºª' key.
+//        VK_OEM_4: Used for the '¡!' key.
+//        VK_OEM_5: Used for the '¿?' key.
+//        VK_OEM_6: Used for the '´¨' key.
+//        VK_OEM_7: Used for the '+*' key.
+//        VK_OEM_8: Not commonly used on a Spanish keyboard.
+//        VK_OEM_102: Used for the '<>' key, located between the left Shift and Z keys.
+//        else if ((hs^.vkCode = Ord('I')) and ShiftPressed and CtrlPressed) then
+        else if ((hs^.vkCode = VK_OEM_2 )
+        and ShiftPressed and CtrlPressed)
+        then
         begin
-          //ShowWindow(ParentHandle, SW_HIDE);
+          ParentHandle := FindWindow('ExplorerCommandWnd', nil);
+          if ParentHandle > 0 then
+          begin
+            command := IntToStr(GetForegroundWindow);
+            PostMessage(ParentHandle, KeyEventAll, wParam, Windows.LPARAM(PChar(command)));
+          end;
         end;
+
+
+//        if (hs^.vkCode = VK_TAB) and ((hs^.flags and LLKHF_UP) <> 0) then
+//        begin
+          //ShowWindow(ParentHandle, SW_HIDE);
+//        end;
       end;
-
-
 //      Result := CallNextHookEx(lpHookRec^.HookHandle, nCode, wParam, lParam);
     end;
 
-    HC_NOREMOVE:
-    begin
+
+    // There is no HC_NOREMOVE in WH_KEYBOARD_ll
+//    HC_NOREMOVE:
+//    begin
       { This is a keystroke message, but the keystroke message has not been
       removed from the message queue, since an application has called
       PeekMessage() specifying PM_NOREMOVE }
-      Result := 0;
-      Exit;
-    end;
+//      Result := 0;
+//      Exit;
+//    end;
   end;
+
+// as we are not blocking for other hooks/system to process this keyboard hook let's just pass all
 //  if nCode < 0 then
-    Result := CallNextHookEx(lpHookRec^.HookHandle, nCode, wParam, lParam);
+  Result := CallNextHookEx(lpHookRec^.HookHandle, nCode, wParam, lParam);
 end;
 
 function StartHook:BOOL stdcall;
