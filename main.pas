@@ -879,10 +879,11 @@ begin
 //  BCEditor1.Lines.Add(ANewLine);
 //  BCEditor1.Text := BCEditor1.Text +#13#10+ ANewLine;
   FCommandOutput.Add(ANewLine);
+  BCEditor1.BeginUpdate;
   BCEditor1.Lines := FCommandOutput;
 //  BCEditor1.Perform(EM_SCROLL, SB_LINEDOWN, 0);
   BCEditor1.GotoLineAndCenter(BCEditor1.Lines.Count);
-
+  BCEditor1.EndUpdate;
 end;
 
 procedure TForm1.DosCommand1Terminated(Sender: TObject);
