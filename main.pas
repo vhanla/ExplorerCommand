@@ -212,6 +212,7 @@ type
     procedure KeyEventHandlerAll(var Msg: TMessage); message KeyEventAll;
     procedure OnFocusLost(Sender: TObject);
 
+    function GetExplorerAddressBarRect(AHandle: HWND): TRect;
     function ShowPreview(const FileName: string): Boolean;
 
     procedure ProcessDosCommand(Sender: TObject; ACommand: string; terminateCurrent: Boolean = False);
@@ -1002,6 +1003,41 @@ begin
 
 end;
 
+function TForm1.GetExplorerAddressBarRect(AHandle: HWND): TRect;
+var
+  ExplorerRect: TRect;
+  LWND: HWND;
+begin
+  // we assume it is a valid explorer instance before calling this function
+  Winapi.Windows.GetWindowRect(AHandle, ExplorerRect);
+
+  LWND := FindWindowEx(AHandle, 0, 'WorkerW', nil);
+  if LWND > 0 then
+    LWND := FindWindowEx(LWND, 0, 'ReBarWindow32', nil);
+  if LWND > 0 then
+    LWND := FindWindowEx(LWND, 0, 'Address Band Root', nil);
+  if LWND > 0 then
+    LWND := FindWindowEx(LWND, 0, 'msctls_progress32', nil);
+  if LWND > 0 then
+    LWND := FindWindowEx(LWND, 0, 'Breadcrumb Parent', nil);
+  if LWND > 0 then
+  begin
+    Winapi.Windows.GetWindowRect(LWND, Result);
+//    Result.Width := Width;
+    if Result.Width < 600 then
+      Result.Width := 600;
+    Result.Height := Height;
+  end
+  else
+  begin
+    // it might be a different explorer version, maybe the newer on Windows 11 Insider which changed its address bar position
+    Result.Width := Width;
+    Result.Height := Height;
+    Result.Left := ExplorerRect.Left + (ExplorerRect.Width - Width) div 2;
+    Result.Top := ExplorerRect.Top + (ExplorerRect.Height - Height) div 2;
+  end;
+end;
+
 procedure TForm1.KeyEventHandler(var Msg: TMessage);
 var
   I: Integer;
@@ -1020,8 +1056,18 @@ begin
 
   if not Visible then
   begin
+    var rct: TRect;
+    rct := GetExplorerAddressBarRect(lastExplorerHandle);
+    Left := rct.Left;
+    Width := rct.Width;
+    Top := rct.Top;
+
 //    SwitchToThisWindow(GetDesktopWindow, True);
+    BorderStyle := bsNone;
+    AnimateWindow(Handle, 128, AW_SLIDE or AW_VER_POSITIVE );
+    BorderStyle := bsSizeable;
     Show;
+
     HActiveWindow := GetForegroundWindow();
     HForegroundThread := GetWindowThreadProcessId(HActiveWindow, @FClientId);
     AllowSetForegroundWindow(FClientId);
@@ -1040,11 +1086,8 @@ begin
       AttachThreadInput(HForegroundThread, HAppThread, False);
     end;
 
-    var rct: TRect;
-    Winapi.Windows.GetWindowRect(HActiveWindow, rct);
+//    Winapi.Windows.GetWindowRect(HActiveWindow, rct);
     SetWindowPos(Handle, HWND_TOP, 0, 0, 0, 0, {SWP_ASYNCWINDOWPOS or }SWP_NOMOVE or SWP_NOSIZE or SWP_SHOWWINDOW);
-    Left := rct.Left + (rct.Width - Width) div 2;
-    Top := rct.Top + (rct.Height - Height) div 2;
 
     // let's put out menu in the Explorer window
 //    Win11TabContainer := FindWindowEx(HActiveWindow, 0, 'TITLE_BAR_SCAFFOLDING_WINDOW_CLASS', nil);
