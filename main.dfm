@@ -334,6 +334,42 @@ object Form1: TForm1
     OnDblClick = ListBox1DblClick
     OnKeyUp = ListBox1KeyUp
   end
+  object VirtualMultiPathExplorerEasyListview1: TVirtualMultiPathExplorerEasyListview
+    Left = 24
+    Top = 104
+    Width = 562
+    Height = 185
+    CellSizes.ReportThumb.Height = 112
+    CellSizes.ReportThumb.Width = 94
+    CompressedFile.Color = clRed
+    CompressedFile.Font.Charset = DEFAULT_CHARSET
+    CompressedFile.Font.Color = clWindowText
+    CompressedFile.Font.Height = -11
+    CompressedFile.Font.Name = 'Tahoma'
+    CompressedFile.Font.Style = []
+    DefaultSortColumn = 0
+    EditManager.Font.Charset = DEFAULT_CHARSET
+    EditManager.Font.Color = clWindowText
+    EditManager.Font.Height = -11
+    EditManager.Font.Name = 'Tahoma'
+    EditManager.Font.Style = []
+    EncryptedFile.Color = 32832
+    EncryptedFile.Font.Charset = DEFAULT_CHARSET
+    EncryptedFile.Font.Color = clWindowText
+    EncryptedFile.Font.Height = -11
+    EncryptedFile.Font.Name = 'Tahoma'
+    EncryptedFile.Font.Style = []
+    FileSizeFormat = vfsfDefault
+    Grouped = False
+    GroupingColumn = 0
+    PaintInfoGroup.MarginBottom.CaptionIndent = 4
+    PaintInfoGroup.MarginTop.Visible = False
+    Sort.Algorithm = esaQuickSort
+    Sort.AutoSort = True
+    TabOrder = 8
+    ThumbsManager.StorageFilename = 'Thumbnails.album'
+    Visible = False
+  end
   object DosCommand1: TDosCommand
     InputToOutput = True
     MaxTimeAfterBeginning = 0
@@ -789,6 +825,11 @@ object Form1: TForm1
       Caption = 'actUnPin'
       ShortCut = 41040
       OnExecute = actUnPinExecute
+    end
+    object actSigInt: TAction
+      Caption = 'actSigInt'
+      ShortCut = 24643
+      OnExecute = actSigIntExecute
     end
   end
   object MadExceptionHandler1: TMadExceptionHandler
