@@ -13,7 +13,8 @@ uses
   SynHighlighterUNIXShellScript, UWP.Form, madExceptVcl, scStyledForm, libgit2,
   rkPathViewer, IconFontsImageListBase, IconFontsImageList, Clipbrd,
   SynHighlighterMulti, SynEditCodeFolding, SynHighlighterPas, Vcl.Buttons,
-  UIRibbon, System.Actions, Vcl.ActnList, Vcl.ToolWin;
+  UIRibbon, System.Actions, Vcl.ActnList, Vcl.ToolWin, MPCommonObjects,
+  EasyListview, VirtualExplorerEasyListview;
 
 const
   KeyEvent = WM_USER + 1;
@@ -163,6 +164,8 @@ type
     Panel1: TPanel;
     actUnPin: TAction;
     MadExceptionHandler1: TMadExceptionHandler;
+    actSigInt: TAction;
+    VirtualMultiPathExplorerEasyListview1: TVirtualMultiPathExplorerEasyListview;
     procedure ButtonedEdit1Enter(Sender: TObject);
     procedure ButtonedEdit1KeyUp(Sender: TObject; var Key: Word;
       Shift: TShiftState);
@@ -189,6 +192,7 @@ type
     procedure SpeedButton1Click(Sender: TObject);
     procedure actPreviewExecute(Sender: TObject);
     procedure actUnPinExecute(Sender: TObject);
+    procedure actSigIntExecute(Sender: TObject);
   private
     { Private declarations }
     FPinned: Boolean;
@@ -677,6 +681,12 @@ begin
     pnlPreview.Visible := not pnlPreview.Visible;
 end;
 
+procedure TForm1.actSigIntExecute(Sender: TObject);
+begin
+  if DosCommand1.IsRunning then
+    DosCommand1.SigInt;
+end;
+
 procedure TForm1.actUnPinExecute(Sender: TObject);
 begin
   SpeedButton1Click(Sender);
@@ -774,7 +784,8 @@ begin
       if Cli.Length > 1 then
       begin
         var command := Copy(CLI,2, Length(CLI) - 1);
-        ShellExecute(0, PChar('OPEN'), PChar(command), nil, nil, SW_SHOWNORMAL);
+
+        ShellExecute(0, PChar('OPEN'), PChar(command), nil, PChar(lastExplorerPath), SW_SHOWNORMAL);
       end
     end
     else if Pos('find ', CLI) = 1 then
