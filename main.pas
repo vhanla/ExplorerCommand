@@ -218,6 +218,7 @@ type
 
     function GetExplorerAddressBarRect(AHandle: HWND): TRect;
     function ShowPreview(const FileName: string): Boolean;
+    procedure SwitchToWindow(AWnd: HWND);
 
     procedure ProcessDosCommand(Sender: TObject; ACommand: string; terminateCurrent: Boolean = False);
 
@@ -1294,7 +1295,9 @@ begin
   if Key = 13 then
   begin
     Hide;
-    SwitchToThisWindow(StrToInt(lstExplorerWnd[ListBox1.ItemIndex]), True);
+//    SwitchToThisWindow(StrToInt(lstExplorerWnd[ListBox1.ItemIndex]), True);
+    SwitchToWindow(StrToInt(lstExplorerWnd[ListBox1.ItemIndex]));
+    ListBox1.Visible := False;
   end;
 end;
 
@@ -1829,6 +1832,26 @@ begin
     end;
   end;
 
+end;
+
+procedure TForm1.SwitchToWindow(AWnd: HWND);
+var
+  HActiveWindow: HWND;
+  HForegroundThread, HAppThread: DWORD;
+  FClientId: DWORD;
+begin
+  HActiveWindow := AWnd;
+
+  HForegroundThread := GetWindowThreadProcessId(HActiveWindow, @FClientId);
+  AllowSetForegroundWindow(FClientId);
+//  SwitchToThisWindow(AWnd, True);
+  HAppThread := GetCurrentThreadId;
+
+  AttachThreadInput(HForegroundThread, HAppThread, True);
+  BringWindowToTop(AWnd);
+  Winapi.Windows.SetFocus(AWnd);
+  AttachThreadInput(HForegroundThread, HAppThread, False);
+  SetForegroundWindow(AWnd);
 end;
 
 procedure TForm1.TrayIcon1DblClick(Sender: TObject);
