@@ -318,8 +318,8 @@ object Form1: TForm1
     end
   end
   object ListBox1: TListBox
-    Left = 8
-    Top = 88
+    Left = 6
+    Top = 86
     Width = 712
     Height = 225
     Font.Charset = ANSI_CHARSET
