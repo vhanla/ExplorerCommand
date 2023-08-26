@@ -257,7 +257,7 @@ implementation
 
 {$R *.dfm}
 
-uses frmHover, UIAutomationClient, DarkModeApi.Vcl;
+uses frmHover, UIAutomationClient, DarkModeApi.Vcl, Vcl.Themes;
 
 type
   THostPreviewHandlerClass = class(THostPreviewHandler);
@@ -1741,7 +1741,7 @@ var
   fileext: string;
 begin
 
-CoInitialize(nil);
+{CoInitialize(nil);
 
   hr := CoCreateInstance(CLSID_WICImagingFactory, nil, CLSCTX_INPROC_SERVER,
           IID_IWICImagingFactory, wicList);
@@ -1775,7 +1775,7 @@ CoInitialize(nil);
   end;
 
 
-CoUninitialize;
+CoUninitialize;}
 
   Image1.Picture.Bitmap.Handle := ExtractThumbnail(FileName, 256, 256 );
 
@@ -1986,6 +1986,8 @@ begin
 end;
 
 procedure TForm1.UpdateStyle;
+const
+  BGCOLOR = $00191919;//$00362A28;
 begin
   //on light
   if SystemIsDarkMode then
@@ -1996,17 +1998,17 @@ begin
     with SynPasSyn1 do
     begin
       CommentAttri.Foreground := $00A47262;
-      CommentAttri.Background := $00362A28;
+      CommentAttri.Background := BGCOLOR;
 
 //      EventAttri.Foreground := $00FDE98B;
 //      EventAttri.Background := $00362A28;
 //      EventAttri.Style := [fsBold];
 
       IdentifierAttri.Foreground := $00F2F8F8;
-      IdentifierAttri.Background := $00362A28;
+      IdentifierAttri.Background := BGCOLOR;
 
       KeyAttri.Foreground := $0054B91D;//FDE98B;
-      KeyAttri.Background := $00362A28;
+      KeyAttri.Background := BGCOLOR;
       KeyAttri.Style := [fsBold];
 
 //      NonReservedKeyAttri.Foreground := $0054B91D;//$00FDE98B;
@@ -2014,10 +2016,10 @@ begin
 //      NonReservedKeyAttri.Style := [fsBold];
 
       NumberAttri.Foreground := $00F993BD;
-      NumberAttri.Background := $00362A28;
+      NumberAttri.Background := BGCOLOR;
 
       SpaceAttri.Foreground := clWindowText;
-      SpaceAttri.Background := $00362A28;
+      SpaceAttri.Background := BGCOLOR;//MOST PART
 
 //      SpecVarAttri.Foreground := $00C679FF;
 //      SpecVarAttri.Background := $00362A28;
@@ -2027,7 +2029,7 @@ begin
       StringAttri.Background := clNone;
 
       SymbolAttri.Foreground := $00C679FF;
-      SymbolAttri.Background := $00362A28;
+      SymbolAttri.Background := BGCOLOR;
 
 //      TemplateAttri.Foreground := $008BE9FC;
 //      TemplateAttri.Background := clNone;
@@ -2040,6 +2042,7 @@ begin
     Form1.Color := RGB(248, 249, 253); //dark: 38, 40 44
     Form1.AlphaBlend := True;
     Form1.AlphaBlendValue := 250; // 253
+    TStyleManager.TrySetStyle('Windows');
   end;
 
 end;
