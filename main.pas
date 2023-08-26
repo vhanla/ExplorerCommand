@@ -14,7 +14,7 @@ uses
   rkPathViewer, IconFontsImageListBase, IconFontsImageList, Clipbrd,
   SynHighlighterMulti, SynEditCodeFolding, SynHighlighterPas, Vcl.Buttons,
   UIRibbon, System.Actions, Vcl.ActnList, Vcl.ToolWin, MPCommonObjects,
-  EasyListview, VirtualExplorerEasyListview;
+  EasyListview, VirtualExplorerEasyListview, kcontrols, khexeditor, keditcommon;
 
 const
   KeyEvent = WM_USER + 1;
@@ -163,9 +163,9 @@ type
     ToolButton1: TToolButton;
     Panel1: TPanel;
     actUnPin: TAction;
-    MadExceptionHandler1: TMadExceptionHandler;
     actSigInt: TAction;
     VirtualMultiPathExplorerEasyListview1: TVirtualMultiPathExplorerEasyListview;
+    KHexEditor1: TKHexEditor;
     procedure ButtonedEdit1Enter(Sender: TObject);
     procedure ButtonedEdit1KeyUp(Sender: TObject; var Key: Word;
       Shift: TShiftState);
@@ -257,7 +257,7 @@ implementation
 
 {$R *.dfm}
 
-  uses frmHover, UIAutomationClient;
+uses frmHover, UIAutomationClient, DarkModeApi.Vcl;
 
 type
   THostPreviewHandlerClass = class(THostPreviewHandler);
@@ -884,6 +884,19 @@ begin
     BCEditor1.Lines.Text := AE.ToString;
 end;
 
+//procedure TForm1.DosCommand1NewChar(ASender: TObject; ANewChar: Char);
+//begin
+//  BCEditor1.BeginUpdate;
+//
+//  if ANewChar <> #13 then
+//  BCEditor1.Text := BCEditor1.Text + ANewChar;
+//
+//  BCEditor1.GotoLineAndCenter(BCEditor1.Lines.Count);
+//
+//  BCEditor1.EndUpdate;
+//  KHexEditor1.ExecuteCommand(ecInsertString, PChar(ANewChar));
+//end;
+
 procedure TForm1.DosCommand1NewLine(ASender: TObject; const ANewLine: string;
   AOutputType: TOutputType);
 begin
@@ -892,10 +905,12 @@ begin
 //  BCEditor1.Text := BCEditor1.Text +#13#10+ ANewLine;
   FCommandOutput.Add(ANewLine);
   BCEditor1.BeginUpdate;
-  BCEditor1.Lines := FCommandOutput;
+  BCEditor1.Lines :=  FCommandOutput;
+//  KHexEditor1.ExecuteCommand(ecInsertString, PChar(ANewLine));
 //  BCEditor1.Perform(EM_SCROLL, SB_LINEDOWN, 0);
   BCEditor1.GotoLineAndCenter(BCEditor1.Lines.Count);
   BCEditor1.EndUpdate;
+  Application.ProcessMessages;
 end;
 
 procedure TForm1.DosCommand1Terminated(Sender: TObject);
@@ -977,6 +992,8 @@ begin
 
   // LibGit2 initialization
   git_libgit2_init;
+
+  SetWindowColorModeAsSystem;
 end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
@@ -1691,6 +1708,7 @@ begin
   begin
     try
     DosCommand1.InputToOutput := False;
+
     DosCommand1.CommandLine := ACommand;
     DosCommand1.Execute;
     ActivityIndicator1.Visible := True;
@@ -1970,9 +1988,59 @@ end;
 procedure TForm1.UpdateStyle;
 begin
   //on light
-  Form1.Color := RGB(248, 249, 253); //dark: 38, 40 44
-  Form1.AlphaBlend := True;
-  Form1.AlphaBlendValue := 250; // 253
+  if SystemIsDarkMode then
+  begin
+    Form1.Color := RGB(38, 40, 4);
+    Form1.AlphaBlend := True;
+    Form1.AlphaBlendValue := 253;
+    with SynPasSyn1 do
+    begin
+      CommentAttri.Foreground := $00A47262;
+      CommentAttri.Background := $00362A28;
+
+//      EventAttri.Foreground := $00FDE98B;
+//      EventAttri.Background := $00362A28;
+//      EventAttri.Style := [fsBold];
+
+      IdentifierAttri.Foreground := $00F2F8F8;
+      IdentifierAttri.Background := $00362A28;
+
+      KeyAttri.Foreground := $0054B91D;//FDE98B;
+      KeyAttri.Background := $00362A28;
+      KeyAttri.Style := [fsBold];
+
+//      NonReservedKeyAttri.Foreground := $0054B91D;//$00FDE98B;
+//      NonReservedKeyAttri.Background := $00362A28;
+//      NonReservedKeyAttri.Style := [fsBold];
+
+      NumberAttri.Foreground := $00F993BD;
+      NumberAttri.Background := $00362A28;
+
+      SpaceAttri.Foreground := clWindowText;
+      SpaceAttri.Background := $00362A28;
+
+//      SpecVarAttri.Foreground := $00C679FF;
+//      SpecVarAttri.Background := $00362A28;
+//      SpecVarAttri.Style := [fsBold];
+
+      StringAttri.Foreground := $008BE9FC;
+      StringAttri.Background := clNone;
+
+      SymbolAttri.Foreground := $00C679FF;
+      SymbolAttri.Background := $00362A28;
+
+//      TemplateAttri.Foreground := $008BE9FC;
+//      TemplateAttri.Background := clNone;
+    end;
+
+    rkSmartPath1.Font.Color := clWhite;
+  end
+  else
+  begin
+    Form1.Color := RGB(248, 249, 253); //dark: 38, 40 44
+    Form1.AlphaBlend := True;
+    Form1.AlphaBlendValue := 250; // 253
+  end;
 
 end;
 

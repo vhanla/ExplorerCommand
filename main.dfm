@@ -76,6 +76,7 @@ object Form1: TForm1
     Gutter.Font.Style = []
     Gutter.Font.Quality = fqClearTypeNatural
     Gutter.ShowLineNumbers = True
+    Gutter.Visible = False
     Gutter.Bands = <
       item
         Kind = gbkMarks
@@ -156,6 +157,21 @@ object Form1: TForm1
       Width = 193
       Height = 185
       AutoSize = True
+    end
+    object KHexEditor1: TKHexEditor
+      Left = 1
+      Top = 1
+      Width = 217
+      Height = 224
+      Align = alClient
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -18
+      Font.Name = 'Courier New'
+      Font.Pitch = fpFixed
+      Font.Style = [fsBold]
+      TabOrder = 0
+      Visible = False
     end
   end
   object rkView1: TrkView
@@ -254,7 +270,7 @@ object Form1: TForm1
       BtnPenNorm = 11632444
       BtnPenShade1 = 9598820
       BtnPenShade2 = 15388572
-      BtnPenArrow = clRed
+      BtnPenArrow = clBlack
       ComputerAsDefault = True
       DirMustExist = True
       DropDown = True
@@ -262,15 +278,22 @@ object Form1: TForm1
       EmptyPathText = 'Este equipo'
       Favorites.Strings = (
         'C:\Archivos Portables')
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -11
+      Font.Name = 'Tahoma'
+      Font.Style = []
       ImagesBtn = ImageList1
       ImageIdxBtn = 0
       NewFolderName = 'NewFolder'
       ParentColor = False
       ParentBackground = False
+      ParentFont = False
       Path = 'C:\Users\vhanl\Documents\'
       ShowNewFolder = False
       SpecialFolders = [spDesktop, spDocuments]
       TabOrder = 2
+      Transparent = True
     end
     object Panel1: TPanel
       Left = 5
@@ -737,7 +760,7 @@ object Form1: TForm1
     CaptionWallpaperTopMargin = 1
     CaptionWallpaperRightMargin = 1
     CaptionWallpaperBottomMargin = 1
-    Left = 368
+    Left = 536
     Top = 184
   end
   object IconFontsImageList1: TIconFontsImageList
@@ -831,9 +854,5 @@ object Form1: TForm1
       ShortCut = 24643
       OnExecute = actSigIntExecute
     end
-  end
-  object MadExceptionHandler1: TMadExceptionHandler
-    Left = 544
-    Top = 176
   end
 end
