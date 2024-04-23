@@ -14,7 +14,8 @@ uses
   rkPathViewer, IconFontsImageListBase, IconFontsImageList, Clipbrd,
   SynHighlighterMulti, SynEditCodeFolding, SynHighlighterPas, Vcl.Buttons,
   UIRibbon, System.Actions, Vcl.ActnList, Vcl.ToolWin, MPCommonObjects,
-  EasyListview, VirtualExplorerEasyListview, kcontrols, khexeditor, keditcommon;
+  EasyListview, VirtualExplorerEasyListview, kcontrols, khexeditor, keditcommon,
+  Process;
 
 const
   KeyEvent = WM_USER + 1;
@@ -166,6 +167,8 @@ type
     actSigInt: TAction;
     VirtualMultiPathExplorerEasyListview1: TVirtualMultiPathExplorerEasyListview;
     KHexEditor1: TKHexEditor;
+    actPath2Clip: TAction;
+    tmrToast: TTimer;
     procedure ButtonedEdit1Enter(Sender: TObject);
     procedure ButtonedEdit1KeyUp(Sender: TObject; var Key: Word;
       Shift: TShiftState);
@@ -193,6 +196,8 @@ type
     procedure actPreviewExecute(Sender: TObject);
     procedure actUnPinExecute(Sender: TObject);
     procedure actSigIntExecute(Sender: TObject);
+    procedure actPath2ClipExecute(Sender: TObject);
+    procedure tmrToastTimer(Sender: TObject);
   private
     { Private declarations }
     FPinned: Boolean;
@@ -227,6 +232,8 @@ type
     procedure UpdateMainMenu(const ForeGroundWindow: HWND);
 
     procedure FlushIcons;
+
+    procedure NoBorder(var Msg: TWMNCActivate); message WM_NCACTIVATE;
   protected
     procedure CreateParams(var Params: TCreateParams); override;
   private
@@ -237,7 +244,10 @@ type
     { Public declarations }
     Directory: string;
     CurrentDir: string;
+    CurrentFile: string;
     GitUrl: string;
+
+    procedure Toast(aText, aTitle: string; sType: string = 'S,I,E'; ParentBase: TWinControl = nil);
 
     procedure populateCommands;
     procedure populateEnvironmentStrings;
@@ -247,6 +257,7 @@ type
 
 var
   Form1: TForm1;
+  args: TStringList;
 
   function StartHook:BOOL; stdcall; external 'HotkeyHook.dll' name 'STARTHOOK';
   procedure StopHook; stdcall; external 'HotkeyHook.dll' name 'STOPHOOK';
@@ -257,12 +268,77 @@ implementation
 
 {$R *.dfm}
 
-uses frmHover, UIAutomationClient, DarkModeApi.Vcl, Vcl.Themes;
+uses
+  frmHover, UIAutomationClient, DarkModeApi.Vcl, Vcl.Themes,
+  DarkModeApi, Winapi.UxTheme;
 
 type
   THostPreviewHandlerClass = class(THostPreviewHandler);
 
 { Global Functions}
+
+function RunProcess(const Binary: string; const DirPath: string; args: TStrings): Boolean;
+const
+  BufSize = 4096; //1024
+var
+  Process: TProcess;
+  Buf: AnsiString;
+  Count: Integer;
+  i: Integer;
+  LineStart: Integer;
+  OutputLine: AnsiString;
+begin
+  Process := TProcess.Create(nil);
+  try
+    Process.Executable := Binary;
+
+    Process.Options := [poUsePipes, poStderrToOutPut];
+    Process.ShowWindow := swoHIDE;
+
+    Process.Parameters.Assign(args);
+    Process.CurrentDirectory := DirPath;
+    Process.Execute;
+
+    OutputLine := '';
+    SetLength(Buf, BufSize);
+    repeat
+      if (Process.Output <> nil) then
+      begin
+        Count := Process.Output.Read(PChar(Buf)^, BufSize);
+      end
+      else
+        Count := 0;
+
+      LineStart := 1;
+      i := 1;
+      while i <= Count do
+      begin
+        if CharInSet(Buf[i], [#10, #13]) then
+        begin
+          OutputLine := OutputLine + Copy(Buf, LineStart, i - LineStart);
+          Form1.BCEditor1.Lines.Add(OutputLine);
+          OutputLine := '';
+          if (i < Count) and (CharInSet(Buf[i], [#10, #13])) and (Buf[i] <> Buf[i + 1]) then
+            Inc(i);
+          LineStart := i + 1;
+        end;
+        Inc(i);
+      end;
+      OutputLine := Copy(Buf, LineStart, Count - LineStart + 1);
+    until Count = 0;
+
+    if OutputLine <> '' then
+      Form1.BCEditor1.Lines.Add(OutputLine);
+
+    Process.WaitOnExit;
+    Result := Process.ExitStatus = 0;
+    if not Result then
+      Form1.BCEditor1.Lines.Add('Command ' + Process.Executable + ' failed with exit code: ' + IntToStr(Process.ExitStatus));
+
+  finally
+    FreeAndNil(Process);
+  end;
+end;
 
 function IsGitRepository(const Dir: string): Boolean;
 var
@@ -659,7 +735,7 @@ begin
 end;
 
 // a custom sort
-function SortItem(List: TIntList; Index1, Index2: Integer): Integer;
+function SortItem(List: rkIntegerList.TIntList; Index1, Index2: Integer): Integer;
 var
   Item1, Item2: PItemData;
 begin
@@ -676,6 +752,16 @@ begin
 end;
 
 { Form1 }
+
+procedure TForm1.actPath2ClipExecute(Sender: TObject);
+begin
+// Copy current path to clipboard
+  if not CurrentDir.IsEmpty and DirectoryExists(CurrentDir) then
+  begin
+    Clipboard.AsText := CurrentDir;
+    Toast('Path copied to clipboard!', 'Current Path', 'S');
+  end;
+end;
 
 procedure TForm1.actPreviewExecute(Sender: TObject);
 begin
@@ -841,10 +927,25 @@ begin
           else
           if DirectoryExists(lastExplorerPath) then
           begin
-            DosCommand1.CurrentDir := lastExplorerPath;
+            var basePath := lastExplorerPath;
+            if DirectoryExists(CurrentFile) then
+              basePath := CurrentFile;
+            DosCommand1.CurrentDir := basePath;
     //        DosCommand1.CommandLine := 'cmd.exe /c ' + ButtonedEdit1.Text;
     //        DosCommand1.Execute;
-            ProcessDosCommand(Self, PChar(CLI));
+            //ProcessDosCommand(Self, PChar('cmd.exe /c ' + CLI));
+
+            args := TStringList.Create;
+            args.Add('/c');
+//            args.Add('chcp');
+//            args.Add('65001');
+//            args.Add('&');
+            args.Add(CLI);
+            RunProcess('cmd.exe', PChar(basePath), args);
+            Toast('Command finished!', '','S');
+            BCEditor1.GotoLineAndCenter(BCEditor1.Lines.Count);
+            args.Free;
+            args := nil;
           end;
         end
       except
@@ -957,6 +1058,7 @@ end;
 procedure TForm1.FormCreate(Sender: TObject);
 begin
   UpdateStyle;
+
   AllowSetForegroundWindow(GetCurrentProcessId);
 
   if not StartHook then
@@ -991,16 +1093,19 @@ begin
   FCommandOutput := TStringList.Create;
 
   // LibGit2 initialization
-  git_libgit2_init;
+//  git_libgit2_init;
+  InitLibgit2;
 
   SetWindowColorModeAsSystem;
 end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
 begin
-  git_libgit2_shutdown;
+  ShutdownLibgit2;
+//  git_libgit2_shutdown;
 
   FEnvExecutables.Free;
+
 
   DosCommand1.Stop;
   FCommandOutput.Free;
@@ -1033,6 +1138,8 @@ begin
 
 end;
 
+// since Windows 11 22h2 build 22621.2506 new file explorer address bar is available
+// so it should choose the new address bar
 function TForm1.GetExplorerAddressBarRect(AHandle: HWND): TRect;
 var
   ExplorerRect: TRect;
@@ -1060,11 +1167,26 @@ begin
   end
   else
   begin
-    // it might be a different explorer version, maybe the newer on Windows 11 Insider which changed its address bar position
-    Result.Width := Width;
-    Result.Height := Height;
-    Result.Left := ExplorerRect.Left + (ExplorerRect.Width - Width) div 2;
-    Result.Top := ExplorerRect.Top + (ExplorerRect.Height - Height) div 2;
+    // on newer File Explorer on Windows 11 let's pick the empty area of the
+    // Child Class: Microsoft.UI.Content.DesktopChildSiteBridge (top area)
+    LWND := FindWindowEx(AHandle, 0, 'Microsoft.UI.Content.DesktopChildSiteBridge', nil);
+    if LWND > 0 then
+    begin
+      var nRect: TRect;
+      Winapi.Windows.GetWindowRect(LWND, nRect);
+      Result.Width := Width;
+      Result.Height := Height;
+      Result.Left := ExplorerRect.Left + (ExplorerRect.Width - Result.Width) div 2;
+      Result.Top := ExplorerRect.Top + nRect.Height;
+    end
+    else
+    begin
+      // it might be a different explorer version, maybe the newer on Windows 11 Insider which changed its address bar position
+      Result.Width := Width;
+      Result.Height := Height;
+      Result.Left := ExplorerRect.Left + (ExplorerRect.Width - Result.Width) div 2;
+      Result.Top := ExplorerRect.Top + (ExplorerRect.Height - Height) div 2;
+    end;
   end;
 end;
 
@@ -1090,12 +1212,15 @@ begin
     rct := GetExplorerAddressBarRect(lastExplorerHandle);
     Left := rct.Left;
     Width := rct.Width;
+    if Width < 800 then
+      Width := 800;
     Top := rct.Top;
 
 //    SwitchToThisWindow(GetDesktopWindow, True);
-    BorderStyle := bsNone;
-    AnimateWindow(Handle, 128, AW_SLIDE or AW_VER_POSITIVE );
-    BorderStyle := bsSizeable;
+
+//    BorderStyle := bsNone;
+//    AnimateWindow(Handle, 128, AW_SLIDE or AW_VER_POSITIVE );
+//    BorderStyle := bsSizeable;
     Show;
 
     HActiveWindow := GetForegroundWindow();
@@ -1156,6 +1281,7 @@ begin
         //WIC
         if FileExists(lstExplorerItem[i]) then
           ShowPreview(lstExplorerItem[i]);
+        CurrentFile := lstExplorerItem[i];
       end;
     end;
 
@@ -1266,6 +1392,7 @@ begin
         //WIC
         if FileExists(lstExplorerItem[i]) then
           ShowPreview(lstExplorerItem[i]);
+        CurrentFile := lstExplorerItem[i];
       end;
     end;
 
@@ -1533,6 +1660,12 @@ begin
   lstExplorerItem.EndUpdate;
   lstExplorerWnd.EndUpdate;
   lstExplorerPath.EndUpdate;
+end;
+
+procedure TForm1.NoBorder(var Msg: TWMNCActivate);
+begin
+  Msg.Active := False;
+  inherited;
 end;
 
 procedure TForm1.OnFocusLost(Sender: TObject);
@@ -1872,6 +2005,19 @@ begin
   SetForegroundWindow(AWnd);
 end;
 
+procedure TForm1.tmrToastTimer(Sender: TObject);
+begin
+  StatusBar1.Panels[0].Text := CurrentFile;
+  tmrToast.Enabled := False;
+end;
+
+procedure TForm1.Toast(aText, aTitle, sType: string; ParentBase: TWinControl);
+begin
+  StatusBar1.Panels[0].Text := aText;
+  tmrToast.Enabled := True;
+
+end;
+
 procedure TForm1.TrayIcon1DblClick(Sender: TObject);
 begin
   Visible := not Visible;
@@ -1992,6 +2138,7 @@ begin
   //on light
   if SystemIsDarkMode then
   begin
+    AllowDarkModeForApp(True);
     Form1.Color := RGB(38, 40, 4);
     Form1.AlphaBlend := True;
     Form1.AlphaBlendValue := 253;
@@ -2313,6 +2460,7 @@ var
   FuzzyMatcher: TFuzzyStringMatcher;
 begin
   inherited;
+//  SetWindowTheme(Handle, PChar('DarkMode_Explorer'), nil);
   if HandleAllocated then
   begin
     try

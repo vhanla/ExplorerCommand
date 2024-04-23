@@ -854,5 +854,16 @@ object Form1: TForm1
       ShortCut = 24643
       OnExecute = actSigIntExecute
     end
+    object actPath2Clip: TAction
+      Caption = 'actPath2Clip'
+      ShortCut = 16460
+      OnExecute = actPath2ClipExecute
+    end
+  end
+  object tmrToast: TTimer
+    Enabled = False
+    OnTimer = tmrToastTimer
+    Left = 376
+    Top = 208
   end
 end
