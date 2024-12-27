@@ -13,7 +13,7 @@ uses
   SynHighlighterUNIXShellScript, UWP.Form, madExceptVcl, scStyledForm, libgit2,
   rkPathViewer, IconFontsImageListBase, IconFontsImageList, Clipbrd,
   SynHighlighterMulti, SynEditCodeFolding, SynHighlighterPas, Vcl.Buttons,
-  UIRibbon, System.Actions, Vcl.ActnList, Vcl.ToolWin, MPCommonObjects,
+  System.Actions, Vcl.ActnList, Vcl.ToolWin, MPCommonObjects,
   EasyListview, VirtualExplorerEasyListview, kcontrols, khexeditor, keditcommon,
   Process;
 
@@ -143,7 +143,6 @@ type
     rkView1: TrkView;
     Image1: TImage;
     SynUNIXShellScriptSyn1: TSynUNIXShellScriptSyn;
-    ActivityIndicator1: TActivityIndicator;
     ListBox1: TListBox;
     ComboBox1: TComboBox;
     scStyledForm1: TscStyledForm;
@@ -239,7 +238,11 @@ type
   private
     FCommandType: TCommandType;
     FEnvExecutables: TStringList;
+    FEnvStrings: TStringList;
     procedure UpdateStyle;
+
+    procedure RefreshEnvironmentVariables;
+    procedure WMSettingChange(var Msg: TMessage); message WM_SETTINGCHANGE;
   public
     { Public declarations }
     Directory: string;
@@ -270,12 +273,66 @@ implementation
 
 uses
   frmHover, UIAutomationClient, DarkModeApi.Vcl, Vcl.Themes,
-  DarkModeApi, Winapi.UxTheme;
+  DarkModeApi, Winapi.UxTheme, UWP.DarkMode, Ntapi.UserEnv, Ntapi.WinNt, Ntapi.ntrtl;
 
 type
   THostPreviewHandlerClass = class(THostPreviewHandler);
 
 { Global Functions}
+function RtlGetVersion(var RTL_OSVERSIONINFOEXW): LONGINT; stdcall;
+  external 'ntdll.dll' Name 'RtlGetVersion';
+function isWindows11:Boolean;
+var
+  winver: RTL_OSVERSIONINFOEXW;
+begin
+  Result := False;
+  if ((RtlGetVersion(winver) = 0) and (winver.dwMajorVersion>=10) and (winver.dwBuildNumber > 22000))  then
+    Result := True;
+end;
+
+procedure EnableNCShadow(Wnd: HWND);
+const
+  DWMWCP_DEFAULT    = 0; // Let the system decide whether or not to round window corners
+  DWMWCP_DONOTROUND = 1; // Never round window corners
+  DWMWCP_ROUND      = 2; // Round the corners if appropriate
+  DWMWCP_ROUNDSMALL = 3; // Round the corners if appropriate, with a small radius
+  DWMWA_WINDOW_CORNER_PREFERENCE = 33; // [set] WINDOW_CORNER_PREFERENCE, Controls the policy that rounds top-level window corners
+var
+  DWM_WINDOW_CORNER_PREFERENCE: Cardinal;
+begin
+
+  if isWindows11  then
+  begin
+
+    DWM_WINDOW_CORNER_PREFERENCE := DWMWCP_ROUNDSMALL;
+     DwmSetWindowAttribute(Wnd, DWMWA_WINDOW_CORNER_PREFERENCE, @DWM_WINDOW_CORNER_PREFERENCE, sizeof(DWM_WINDOW_CORNER_PREFERENCE));
+  end;
+end;
+
+
+procedure UseImmersiveDarkMode(Handle: HWND; Enable: Boolean);
+const
+  DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 = 19;
+  DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+var
+  DarkMode: DWORD;
+  Attribute: DWORD;
+begin
+//https://stackoverflow.com/a/62811758
+  DarkMode := DWORD(Enable);
+
+  if Win32MajorVersion = 10  then
+  begin
+    if Win32BuildNumber >= 17763 then
+    begin
+      Attribute := DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1;
+    if Win32BuildNumber >= 18985 then
+      Attribute := DWMWA_USE_IMMERSIVE_DARK_MODE;
+      DwmSetWindowAttribute(Handle, Attribute, @DarkMode, SizeOf(DWord));
+      SetWindowPos(Handle, 0, 0, 0, 0, 0, SWP_DRAWFRAME or SWP_NOACTIVATE or SWP_NOMOVE or SWP_NOSIZE or SWP_NOZORDER);
+    end;
+  end;
+end;
 
 function RunProcess(const Binary: string; const DirPath: string; args: TStrings): Boolean;
 const
@@ -544,7 +601,7 @@ begin
     end;
     slMain := slMain + slSize;
   end;
-  I := Max(Result.X, Result.Y);
+  I := Math.Max(Result.X, Result.Y);
   j := 0;
   while I > j do
     j := j + 8;
@@ -805,7 +862,7 @@ begin
   CLI := ButtonedEdit1.Text;
   if key = 13 then
   begin
-    populateCommands;
+//    populateCommands;
     if CLI = 'list' then
     begin
       ListExplorerInstances;
@@ -852,6 +909,21 @@ begin
         NewPos.Y := _M.Top + (_M.Height - _R.Height) div 2;
         MoveWindow(lastExplorerHandle, NewPos.X, NewPos.Y, _R.Width, _R.Height, True);
       end;
+    end
+    else if CLI = 'cmd' then
+    begin
+      if DirectoryExists(lastExplorerPath) then
+//        ShellExecute(0, PChar('OPEN'), PChar('cmd.exe'), PChar('/k refreshenv && cd /d ' + lastExplorerPath), PChar(lastExplorerPath), SW_SHOWNORMAL);
+        ShellExecute(0, PChar('OPEN'), PChar('cmd.exe'), PChar('/k cd /d ' + lastExplorerPath), PChar(lastExplorerPath), SW_SHOWNORMAL)
+      else
+        ShellExecute(0, PChar('OPEN'), PChar('cmd.exe'), PChar('/k cd %USERPROFILE%'), nil, SW_SHOWNORMAL)
+    end
+    else if CLI = 'env' then
+    begin
+      BCEditor1.Lines.Clear;
+      BCEditor1.Lines.Add('[Environment PATH]');
+      for var _env in FEnvStrings do
+        BCEditor1.Lines.Add(PChar(_env));
     end
     else if CLI = 'flushicons' then
     begin
@@ -940,6 +1012,27 @@ begin
 //            args.Add('chcp');
 //            args.Add('65001');
 //            args.Add('&');
+
+            if OpenURL1.Enabled then //git folder detected
+            begin
+              if (CLI = 'gp') or CLI.Contains('-pull') then
+              begin
+                ButtonedEdit1.Text := 'git pull';
+              end
+              else if (CLI = 'gu') or CLI.Contains('-url') then
+              begin
+                ButtonedEdit1.Text := 'giturl';
+              end
+              else if (CLI = 'gr') or Cli.Contains('-readme') then
+              begin
+                var readmePath := basePath + '\README.md';
+                if FileExists(readmePath) then
+                  ButtonedEdit1.Text := ('start ' + readmePath)
+                else
+                  ButtonedEdit1.Text := ('echo NO README FOUND!');
+              end;
+              CLI := ButtonedEdit1.Text;
+            end;
             args.Add(CLI);
             RunProcess('cmd.exe', PChar(basePath), args);
             Toast('Command finished!', '','S');
@@ -1017,8 +1110,8 @@ end;
 procedure TForm1.DosCommand1Terminated(Sender: TObject);
 begin
   BCEditor1.Lines.Add('¡Completed process!');
-  ActivityIndicator1.Animate := False;
-  ActivityIndicator1.Visible := False;
+//  ActivityIndicator1.Animate := False;
+//  ActivityIndicator1.Visible := False;
 //  BCEditor1.Lines := FCommandOutput;
   BCEditor1.GotoLineAndCenter(BCEditor1.Lines.Count);
   FCommandOutput.Clear;
@@ -1059,6 +1152,9 @@ procedure TForm1.FormCreate(Sender: TObject);
 begin
   UpdateStyle;
 
+  EnableImmersiveDarkMode(True);
+  UseImmersiveDarkMode(Handle, True); //my function to dark mode titlebar win11+
+  EnableNCShadow(Handle);
   AllowSetForegroundWindow(GetCurrentProcessId);
 
   if not StartHook then
@@ -1069,7 +1165,7 @@ begin
 
   KeyPreview := True;
 
-  ActivityIndicator1.Visible := False;
+//  ActivityIndicator1.Visible := False;
 
   lstExplorerPath := TStringList.Create;
   lstExplorerWnd := TStringList.Create;
@@ -1084,6 +1180,10 @@ begin
 //  BCEditor1.Font.Size := 9;
 
   FEnvExecutables := TStringList.Create;
+  FEnvStrings := TStringList.Create;
+
+  RefreshEnvironmentVariables;
+
   // IAutoComplete
   ButtonedEdit1.ACEnabled := True;
   ButtonedEdit1.ACOptions := [acAutoAppend, acAutoSuggest, acUpDownKeyDropsList];
@@ -1096,7 +1196,9 @@ begin
 //  git_libgit2_init;
   InitLibgit2;
 
-  SetWindowColorModeAsSystem;
+//  SetWindowColorModeAsSystem;
+  if SystemIsDarkMode then
+    SetDarkMode(Handle, True);
 end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
@@ -1104,6 +1206,7 @@ begin
   ShutdownLibgit2;
 //  git_libgit2_shutdown;
 
+  FEnvStrings.Free;
   FEnvExecutables.Free;
 
 
@@ -1201,6 +1304,7 @@ var
   FClientId: DWORD;
   Win11TabContainer: HWND; //TITLE_BAR_SCAFFOLDING_WINDOW_CLASS
 begin
+    populateCommands;
 //  OutputDebugString(PChar('heehhehe'));
   command := PChar(Msg.LParam);
   lastExplorerHandle := StrToInt(command);
@@ -1698,12 +1802,23 @@ begin
     Add('find');
     Add('open');
     Add('cmd');
+    Add('env');
     Add('dir');
-    Add('git');
+    if OpenURL1.Enabled then
+    begin
+      Add('git');
+      Add('git-pull'); // git pull
+      Add('gp');
+      Add('git-readme'); // git readme
+      Add('gr');
+      Add('git-url'); // git url
+      Add('gu');
+    end;
     Add('cls');
     Add('listexplorers');
     Add('list');
     Add('center');
+    Add('cmd');
     Add('preview');
     EndUpdate;
   end;
@@ -1844,8 +1959,8 @@ begin
 
     DosCommand1.CommandLine := ACommand;
     DosCommand1.Execute;
-    ActivityIndicator1.Visible := True;
-    ActivityIndicator1.Animate := DosCommand1.IsRunning;
+//    ActivityIndicator1.Visible := True;
+//    ActivityIndicator1.Animate := DosCommand1.IsRunning;
     except
       on e:ECreateProcessError do
       begin
@@ -1916,7 +2031,7 @@ CoUninitialize;}
 
   if fPreview <> nil then
     fPreview.Free;
-
+{ DISABLE FOR NOW
   fPreview := THostPreviewHandler.Create(Self);
   fPreview.Top := 0;
   fPreview.Left := 0;
@@ -1964,7 +2079,7 @@ CoUninitialize;}
 
     end;
 
-  end;
+  end;}
 end;
 
 procedure TForm1.SpeedButton1Click(Sender: TObject);
@@ -2192,6 +2307,67 @@ begin
     TStyleManager.TrySetStyle('Windows');
   end;
 
+end;
+
+procedure TForm1.RefreshEnvironmentVariables;
+var
+  TokenHandle: THandle;
+  EnvironmentStrings: PEnvironment; // LPTSTR;
+  Current: PChar;
+begin
+  TokenHandle := 0;
+  try
+    if not OpenProcessToken(GetCurrentProcess, TOKEN_QUERY or TOKEN_DUPLICATE, TokenHandle) then
+      RaiseLastOSError;
+
+    // Get the environment strings block
+    //EnvironmentStrings := GetEnvironmentStrings;
+    if CreateEnvironmentBlock(EnvironmentStrings, TokenHandle, False) then
+    try
+      if EnvironmentStrings = nil then
+        Exit;
+
+      FEnvStrings.Clear;
+      FEnvStrings.Delimiter := ';';
+      FEnvStrings.StrictDelimiter := True;
+      // Loop through the environment strings and reload them
+      Current := PChar(EnvironmentStrings);
+      while Current^ <> #0 do
+      begin
+        var EnvEntry := String(Current);
+        var Pos := EnvEntry.IndexOf('=');
+        if Pos > 0 then
+        begin
+          var Name := Copy(EnvEntry, 1, Pos);
+          var Value := Copy(EnvEntry, Pos + 2, Length(EnvEntry) - Pos - 1);
+          Winapi.Windows.SetEnvironmentVariable(PChar(Name), PChar(Value));
+          if LowerCase(Name) = 'path' then
+            FEnvStrings.DelimitedText := PChar(Value);
+        end;
+
+        // Move to the next environment string
+        Inc(Current, StrLen(Current) + 1);
+      end;
+    finally
+      //FreeEnvironmentStrings(EnvironmentStrings);
+      RtlDestroyEnvironment(EnvironmentStrings);
+    end
+    else
+      RaiseLastOSError;
+  finally
+    if TokenHandle <> 0 then
+      CloseHandle(TokenHandle);
+  end;
+end;
+
+procedure TForm1.WMSettingChange(var Msg: TMessage);
+begin
+  if PChar(Msg.LParam) = 'Environment' then
+  begin
+    RefreshEnvironmentVariables;
+//    ShowMessage('Environment refreshed!');
+  end;
+  inherited;
 end;
 
 { ThumbThread }
