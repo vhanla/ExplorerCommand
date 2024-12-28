@@ -23,6 +23,10 @@ const
   CM_UpdateView = WM_USER + 2;
   CM_Progress   = WM_USER + 3;
   IID_IImageList: TGUID = '{46EB5926-582E-4017-9FDF-E8998DAA0950}';
+
+type
+  EInvalidImageFormat = class(Exception);
+
 type
 
   PItemData = ^TItemData;
@@ -243,6 +247,8 @@ type
 
     procedure RefreshEnvironmentVariables;
     procedure WMSettingChange(var Msg: TMessage); message WM_SETTINGCHANGE;
+
+    function ConvertImageToJpeg(const InputFileName, OutputFileName: string): Boolean;
   public
     { Public declarations }
     Directory: string;
@@ -273,7 +279,8 @@ implementation
 
 uses
   frmHover, UIAutomationClient, DarkModeApi.Vcl, Vcl.Themes,
-  DarkModeApi, Winapi.UxTheme, UWP.DarkMode, Ntapi.UserEnv, Ntapi.WinNt, Ntapi.ntrtl;
+  DarkModeApi, Winapi.UxTheme, UWP.DarkMode, Ntapi.UserEnv, Ntapi.WinNt, Ntapi.ntrtl,
+  pngimage, GIFImg, Cod.Imaging.Heif, Cod.Imaging.WebP;
 
 type
   THostPreviewHandlerClass = class(THostPreviewHandler);
@@ -894,6 +901,19 @@ begin
       if FileExists(curFile) then
         BCEditor1.Lines.LoadFromFile(curFile);
     end
+    else if CLI = 'tojpg' then
+    begin
+      var curFile := StatusBar1.Panels[0].Text;
+      if FileExists(curFile) then
+      begin
+        if ConvertImageToJpeg(curFile, curFile +'.jpg') then
+        begin
+          BCEditor1.Clear;
+          BCEditor1.Lines.Add('Image converted to JPG %90');
+          BCEditor1.Lines.Add(curFile + '.jpg');
+        end;
+      end;
+    end
     else if CLI = 'center' then
     begin
       if IsZoomed(lastExplorerHandle) then Exit;
@@ -1057,6 +1077,133 @@ begin
 
 
   inherited;
+end;
+
+function TForm1.ConvertImageToJpeg(const InputFileName,
+  OutputFileName: string): Boolean;
+const
+  // Hex headers for different formats
+  BMPHeader: array[0..1] of Byte = ($42, $4D); // BM
+  PNGHeader: array[0..7] of Byte = ($89, $50, $4E, $47, $0D, $0A, $1A, $0A); // PNG signature
+  GIFHeader: array[0..2] of Byte = ($47, $49, $46); // GIF
+  JPEGHeader: array[0..1] of Byte = ($FF, $D8); // JPEG SOI marker
+  WebPHeader: array[0..3] of Byte = ($52, $49, $46, $46); // RIFF for WebP
+  HEIFHeader: array[0..3] of Byte = ($66, $74, $79, $70); // ftyp for HEIF
+var
+  FileStream: TFileStream;
+  Header: TBytes;
+  InputImage: TGraphic;
+  JPEGImage: TJPEGImage;
+  Bitmap: TBitmap;
+  FormatValid: Boolean;
+
+  function CompareHeader(const FileHeader, ValidHeader: array of Byte): Boolean;
+  var
+    I: Integer;
+  begin
+    Result := Length(FileHeader) >= Length(ValidHeader);
+    if Result then
+      for I := 0 to High(ValidHeader) do
+        if FileHeader[I] <> ValidHeader[I] then
+          Exit(False);
+  end;
+
+  function ConfirmOverwrite(const FileName: string): Boolean;
+  begin
+    Result := not FileExists(FileName) or
+      (MessageDlg(Format('File "%s" already exists. Do you want to overwrite it?',
+        [FileName]), mtConfirmation, [mbYes, mbNo], 0) = mrYes);
+  end;
+
+begin
+  Result := False;
+  FormatValid := False;
+  Header := nil;
+  InputImage := nil;
+  JPEGImage := nil;
+  Bitmap := nil;
+
+  // Check if output file exists and confirm overwrite
+  if not ConfirmOverwrite(OutputFileName) then
+    Exit;
+
+  try
+    // Open file to read header
+    FileStream := TFileStream.Create(InputFileName, fmOpenRead or fmShareDenyWrite);
+    try
+      SetLength(Header, 8); // Longest header is 8 bytes (PNG)
+      FileStream.ReadBuffer(Header[0], Length(Header));
+    finally
+      FileStream.Free;
+    end;
+
+    // Validate format based on header
+    if CompareHeader(Header, BMPHeader) then
+      InputImage := TBitmap.Create
+    else if CompareHeader(Header, PNGHeader) then
+      InputImage := TPngImage.Create
+    else if CompareHeader(Header, GIFHeader) then
+      InputImage := TGIFImage.Create
+    else if CompareHeader(Header, JPEGHeader) then
+      InputImage := TJPEGImage.Create
+    else if CompareHeader(Header, WebPHeader) then
+      InputImage := TWebPImage.Create
+    else if CompareHeader(Header, HEIFHeader) then
+      InputImage := THEIFImage.Create
+    else
+      raise EInvalidImageFormat.Create('Unsupported image format.');
+
+    FormatValid := True;
+
+    // Load image into InputImage
+    InputImage.LoadFromFile(InputFileName);
+
+    // Create intermediate bitmap for PNG and HEIF
+    if (InputImage is TPngImage) or (InputImage is THEIFImage) then
+    begin
+      Bitmap := TBitmap.Create;
+      try
+        Bitmap.Width := InputImage.Width;
+        Bitmap.Height := InputImage.Height;
+        Bitmap.Canvas.Draw(0, 0, InputImage);
+
+        // Convert to JPEG
+        JPEGImage := TJPEGImage.Create;
+        try
+          JPEGImage.Assign(Bitmap); // Assign from bitmap instead of direct conversion
+          JPEGImage.CompressionQuality := 90;
+          JPEGImage.SaveToFile(OutputFileName);
+          Result := True;
+        finally
+          JPEGImage.Free;
+        end;
+      finally
+        Bitmap.Free;
+      end;
+    end
+    else
+    begin
+      // Direct conversion for other formats
+      JPEGImage := TJPEGImage.Create;
+      try
+        JPEGImage.Assign(InputImage);
+        JPEGImage.CompressionQuality := 90;
+        JPEGImage.SaveToFile(OutputFileName);
+        Result := True;
+      finally
+        JPEGImage.Free;
+      end;
+    end;
+  except
+    on E: Exception do
+      raise Exception.CreateFmt('Error converting image: %s', [E.Message]);
+  end;
+
+  // Clean up
+  if not FormatValid then
+    raise EInvalidImageFormat.Create('Image format validation failed.');
+  if Assigned(InputImage) then
+    InputImage.Free;
 end;
 
 procedure TForm1.CopyPathtoClipboard1Click(Sender: TObject);
@@ -1820,6 +1967,7 @@ begin
     Add('center');
     Add('cmd');
     Add('preview');
+    Add('tojpg');
     EndUpdate;
   end;
 end;
