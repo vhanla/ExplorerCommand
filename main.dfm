@@ -42,9 +42,9 @@ object Form1: TForm1
   TextHeight = 13
   object Splitter1: TSplitter
     Left = 530
-    Top = 143
+    Top = 172
     Width = 6
-    Height = 226
+    Height = 197
     Align = alRight
     Beveled = True
     ExplicitLeft = 461
@@ -53,14 +53,14 @@ object Form1: TForm1
   end
   object BCEditor1: TSynEdit
     Left = 0
-    Top = 143
+    Top = 172
     Width = 530
-    Height = 226
+    Height = 197
     Align = alClient
     Font.Charset = DEFAULT_CHARSET
     Font.Color = clWindowText
     Font.Height = -13
-    Font.Name = 'Delugia'
+    Font.Name = 'Consolas'
     Font.Pitch = fpFixed
     Font.Style = []
     Font.Quality = fqClearTypeNatural
@@ -98,7 +98,11 @@ object Form1: TForm1
     Highlighter = SynPasSyn1
     Options = [eoAutoIndent]
     ReadOnly = True
+    ScrollbarAnnotations = <>
     SelectedColor.Alpha = 0.400000005960464500
+    VisibleSpecialChars = []
+    ExplicitTop = 143
+    ExplicitHeight = 226
   end
   object StatusBar1: TStatusBar
     Left = 0
@@ -117,7 +121,7 @@ object Form1: TForm1
   end
   object SearchBox1: TSearchBox
     Left = 0
-    Top = 0
+    Top = 29
     Width = 755
     Height = 32
     Align = alTop
@@ -130,20 +134,23 @@ object Form1: TForm1
     TabOrder = 2
     Text = 'SearchBox1'
     Visible = False
+    ExplicitTop = 0
   end
   object pnlPreview: TPanel
     Left = 536
-    Top = 143
+    Top = 172
     Width = 219
-    Height = 226
+    Height = 197
     Align = alRight
     Caption = 'Picture Preview Pane'
     TabOrder = 3
+    ExplicitTop = 143
+    ExplicitHeight = 226
     object EsImage1: TEsImage
       Left = 1
       Top = 1
       Width = 217
-      Height = 224
+      Height = 195
       Align = alClient
       Stretch = Fit
       Visible = False
@@ -162,7 +169,7 @@ object Form1: TForm1
       Left = 1
       Top = 1
       Width = 217
-      Height = 224
+      Height = 195
       Align = alClient
       Font.Charset = DEFAULT_CHARSET
       Font.Color = clWindowText
@@ -172,6 +179,7 @@ object Form1: TForm1
       Font.Style = [fsBold]
       TabOrder = 0
       Visible = False
+      ExplicitHeight = 183
     end
   end
   object rkView1: TrkView
@@ -193,14 +201,9 @@ object Form1: TForm1
     Columns = ''
     ColorSel = 14120960
   end
-  object ActivityIndicator1: TActivityIndicator
-    Left = 26
-    Top = 4
-    IndicatorSize = aisSmall
-  end
   object pnlTop: TPanel
     Left = 0
-    Top = 32
+    Top = 61
     Width = 755
     Height = 111
     Align = alTop
@@ -210,7 +213,8 @@ object Form1: TForm1
     Padding.Top = 4
     Padding.Right = 4
     Padding.Bottom = 4
-    TabOrder = 7
+    TabOrder = 6
+    ExplicitTop = 32
     object ComboBox1: TComboBox
       Left = 5
       Top = 78
@@ -289,7 +293,7 @@ object Form1: TForm1
       ParentColor = False
       ParentBackground = False
       ParentFont = False
-      Path = 'C:\Users\vhanl\Documents\'
+      Path = 'C:\Users\vhanla\Documents\'
       ShowNewFolder = False
       SpecialFolders = [spDesktop, spDocuments]
       TabOrder = 2
@@ -350,9 +354,8 @@ object Form1: TForm1
     Font.Height = -12
     Font.Name = 'Delugia Nerd Font'
     Font.Style = []
-    ItemHeight = 15
     ParentFont = False
-    TabOrder = 6
+    TabOrder = 5
     Visible = False
     OnDblClick = ListBox1DblClick
     OnKeyUp = ListBox1KeyUp
@@ -389,9 +392,28 @@ object Form1: TForm1
     PaintInfoGroup.MarginTop.Visible = False
     Sort.Algorithm = esaQuickSort
     Sort.AutoSort = True
-    TabOrder = 8
+    TabOrder = 7
     ThumbsManager.StorageFilename = 'Thumbnails.album'
     Visible = False
+  end
+  object pnlTitle: TPanel
+    Left = 0
+    Top = 0
+    Width = 755
+    Height = 29
+    Align = alTop
+    Caption = 'Repository: '
+    ShowCaption = False
+    TabOrder = 8
+    object LinkLabel1: TLinkLabel
+      Left = 312
+      Top = 6
+      Width = 128
+      Height = 17
+      Caption = 'Repository: <a href="">codigobit.info</a>'
+      TabOrder = 0
+      OnLinkClick = LinkLabel1LinkClick
+    end
   end
   object DosCommand1: TDosCommand
     InputToOutput = True
@@ -694,6 +716,10 @@ object Form1: TForm1
       Caption = '&Show'
       OnClick = Show1Click
     end
+    object mnuAutoStart: TMenuItem
+      Caption = 'Statup with Windows'
+      OnClick = mnuAutoStartClick
+    end
     object N1: TMenuItem
       Caption = '-'
     end
@@ -795,7 +821,7 @@ object Form1: TForm1
     Top = 264
   end
   object IconFontsImageList2: TIconFontsImageList
-    FontName = 'Segoe Fluent Icons'
+    FontName = 'Segoe MDL2 Assets'
     IconFontItems = <
       item
         FontIconDec = 59173
@@ -865,5 +891,10 @@ object Form1: TForm1
     OnTimer = tmrToastTimer
     Left = 376
     Top = 208
+  end
+  object AppAutoStart1: TAppAutoStart
+    AppName = 'ExplorerCommand'
+    Left = 160
+    Top = 112
   end
 end

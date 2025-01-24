@@ -15,7 +15,7 @@ uses
   SynHighlighterMulti, SynEditCodeFolding, SynHighlighterPas, Vcl.Buttons,
   System.Actions, Vcl.ActnList, Vcl.ToolWin, MPCommonObjects,
   EasyListview, VirtualExplorerEasyListview, kcontrols, khexeditor, keditcommon,
-  Process;
+  Process, UWP.Autorun;
 
 const
   KeyEvent = WM_USER + 1;
@@ -172,6 +172,10 @@ type
     KHexEditor1: TKHexEditor;
     actPath2Clip: TAction;
     tmrToast: TTimer;
+    AppAutoStart1: TAppAutoStart;
+    mnuAutoStart: TMenuItem;
+    pnlTitle: TPanel;
+    LinkLabel1: TLinkLabel;
     procedure ButtonedEdit1Enter(Sender: TObject);
     procedure ButtonedEdit1KeyUp(Sender: TObject; var Key: Word;
       Shift: TShiftState);
@@ -201,6 +205,9 @@ type
     procedure actSigIntExecute(Sender: TObject);
     procedure actPath2ClipExecute(Sender: TObject);
     procedure tmrToastTimer(Sender: TObject);
+    procedure mnuAutoStartClick(Sender: TObject);
+    procedure LinkLabel1LinkClick(Sender: TObject; const Link: string;
+      LinkType: TSysLinkType);
   private
     { Private declarations }
     FPinned: Boolean;
@@ -1343,6 +1350,8 @@ begin
 //  git_libgit2_init;
   InitLibgit2;
 
+  mnuAutoStart.Checked := AppAutoStart1.IsStartupEnabled;
+
 //  SetWindowColorModeAsSystem;
   if SystemIsDarkMode then
     SetDarkMode(Handle, True);
@@ -1553,9 +1562,17 @@ begin
     CurrentDir := rkSmartPath1.Path;
     GitUrl := GetRemoteURL(rkSmartPath1.Path, 'origin');
     if Pos('http', LowerCase(GitUrl)) = 1 then
-      OpenURL1.Enabled := True
+    begin
+      OpenURL1.Enabled := True;
+      pnlTitle.Visible := True;
+      LinkLabel1.Caption := 'Repository: <a href="' +  GitUrl + '">' + GitUrl + '</a>';
+      LinkLabel1.Left := (pnlTitle.Width - LinkLabel1.Width) div 2;
+    end
     else
+    begin
       OpenURL1.Enabled := False;
+      pnlTitle.Visible := False;
+    end;
 
 //    BCEditor1.Lines.Add(gurl);
   end
@@ -1678,6 +1695,15 @@ begin
 end;
 
 // Lists explorer instances which has items visible, ignores special directories
+procedure TForm1.LinkLabel1LinkClick(Sender: TObject; const Link: string;
+  LinkType: TSysLinkType);
+begin
+  if LinkType = sltURL then
+  begin
+    ShellExecute(0, 'OPEN', PChar(Link), nil, nil, SW_NORMAL);
+  end;
+end;
+
 procedure TForm1.ListBox1DblClick(Sender: TObject);
 begin
   Hide;
@@ -1911,6 +1937,12 @@ begin
   lstExplorerItem.EndUpdate;
   lstExplorerWnd.EndUpdate;
   lstExplorerPath.EndUpdate;
+end;
+
+procedure TForm1.mnuAutoStartClick(Sender: TObject);
+begin
+  mnuAutoStart.Checked := not mnuAutoStart.Checked;
+  AppAutoStart1.Enabled := mnuAutoStart.Checked;
 end;
 
 procedure TForm1.NoBorder(var Msg: TWMNCActivate);
