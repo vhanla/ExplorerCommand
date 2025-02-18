@@ -10,12 +10,16 @@ uses
   Vcl.Menus, DzDirSeek, rkSmartPath, rkVistaProBar, Vcl.VirtualImage,
   uHostPreview, Winapi.Wincodec, StrUtils, ES.BaseControls, ES.Images, rkView,
   JPEG, Math, CommCtrl {HIMAGELIST}, rkIntegerList, SynEditHighlighter,
-  SynHighlighterUNIXShellScript, UWP.Form, madExceptVcl, scStyledForm, libgit2,
+  SynHighlighterUNIXShellScript, CB.Form, madExceptVcl, scStyledForm, libgit2,
   rkPathViewer, IconFontsImageListBase, IconFontsImageList, Clipbrd,
   SynHighlighterMulti, SynEditCodeFolding, SynHighlighterPas, Vcl.Buttons,
   System.Actions, Vcl.ActnList, Vcl.ToolWin, MPCommonObjects,
-  EasyListview, VirtualExplorerEasyListview, kcontrols, khexeditor, keditcommon,
-  Process, UWP.Autorun;
+  EasyListview, VirtualExplorerEasyListview,
+  Process, CB.Autorun, System.SyncObjs, ACL.UI.Controls.Base,
+  ACL.UI.Controls.Labels, ACL.UI.Controls.ActivityIndicator,
+  Vcl.VirtualImageList, Vcl.BaseImageCollection, Vcl.ImageCollection,
+  ACL.UI.Controls.CompoundControl, ACL.UI.Controls.HexView, ACL.Classes,
+  ACL.UI.Application;
 
 const
   KeyEvent = WM_USER + 1;
@@ -113,6 +117,7 @@ type
     procedure SetACOptions(const Value: TACOptions);
     procedure SetACSource(const Value: TACSource);
     procedure SetACStrings(const Value: TStringList);
+    class constructor Create;
   protected
     procedure CreateWnd; override;
     procedure DestroyWnd; override;
@@ -149,7 +154,6 @@ type
     SynUNIXShellScriptSyn1: TSynUNIXShellScriptSyn;
     ListBox1: TListBox;
     ComboBox1: TComboBox;
-    scStyledForm1: TscStyledForm;
     pnlTop: TPanel;
     IconFontsImageList1: TIconFontsImageList;
     rkSmartPath1: TrkSmartPath;
@@ -169,13 +173,19 @@ type
     actUnPin: TAction;
     actSigInt: TAction;
     VirtualMultiPathExplorerEasyListview1: TVirtualMultiPathExplorerEasyListview;
-    KHexEditor1: TKHexEditor;
     actPath2Clip: TAction;
     tmrToast: TTimer;
-    AppAutoStart1: TAppAutoStart;
+    AppAutoStart1: TCBAutoStart;
     mnuAutoStart: TMenuItem;
     pnlTitle: TPanel;
     LinkLabel1: TLinkLabel;
+    tmrOutput: TTimer;
+    ActivityIndicator1: TActivityIndicator;
+    ImageCollection1: TImageCollection;
+    VirtualImageList1: TVirtualImageList;
+    ACLHexView1: TACLHexView;
+    ACLApplicationController1: TACLApplicationController;
+    btnFileHandler: TSpeedButton;
     procedure ButtonedEdit1Enter(Sender: TObject);
     procedure ButtonedEdit1KeyUp(Sender: TObject; var Key: Word;
       Shift: TShiftState);
@@ -208,8 +218,13 @@ type
     procedure mnuAutoStartClick(Sender: TObject);
     procedure LinkLabel1LinkClick(Sender: TObject; const Link: string;
       LinkType: TSysLinkType);
+    procedure tmrOutputTimer(Sender: TObject);
+    procedure btnFileHandlerClick(Sender: TObject);
   private
     { Private declarations }
+    FOutputBuffer: TStringList;
+    FSyncLock: TCriticalSection;
+
     FPinned: Boolean;
     Items: TList;
     ThumbSizeW, ThumbSizeH: Integer;
@@ -225,6 +240,7 @@ type
     lstExplorerItem: TStringList;
 
     fPreview: THostPreviewHandler;
+    fHexBuffer: TFileStream;
 
     function ListExplorerInstances:Integer;
     procedure KeyEventHandler(var Msg: TMessage); message KeyEvent;
@@ -246,6 +262,7 @@ type
     procedure NoBorder(var Msg: TWMNCActivate); message WM_NCACTIVATE;
   protected
     procedure CreateParams(var Params: TCreateParams); override;
+    procedure WndProc(var Message: TMessage); override;
   private
     FCommandType: TCommandType;
     FEnvExecutables: TStringList;
@@ -269,6 +286,8 @@ type
     procedure populateEnvironmentStrings;
     procedure populateMyFolders;
     procedure populateEnvExecutables;
+
+    procedure UpdateTheme;
   end;
 
 var
@@ -286,8 +305,8 @@ implementation
 
 uses
   frmHover, UIAutomationClient, DarkModeApi.Vcl, Vcl.Themes,
-  DarkModeApi, Winapi.UxTheme, UWP.DarkMode, Ntapi.UserEnv, Ntapi.WinNt, Ntapi.ntrtl,
-  pngimage, GIFImg, Cod.Imaging.Heif, Cod.Imaging.WebP;
+  DarkModeApi, Winapi.UxTheme, CB.DarkMode, Ntapi.UserEnv, Ntapi.WinNt, Ntapi.ntrtl,
+  pngimage, GIFImg, Cod.Imaging.Heif, Cod.Imaging.WebP, Vcl.SysStyles, ACL.Utils.Common;
 
 type
   THostPreviewHandlerClass = class(THostPreviewHandler);
@@ -855,6 +874,20 @@ begin
   UpdateMainMenu(lastExplorerHandle);
 end;
 
+procedure TForm1.btnFileHandlerClick(Sender: TObject);
+begin
+  btnFileHandler.Visible := False;
+  Panel1.Caption := '';
+  if Assigned(fHexBuffer) then
+    fHexBuffer.Free;
+  ACLHexView1.Visible := False;
+  try
+  ACLHexView1.Data := nil;
+  ACLHexView1.FullRefresh;
+  except
+  end;
+end;
+
 procedure TForm1.ButtonedEdit1Enter(Sender: TObject);
 begin
 // ButtonedEdit1.RightButton.Visible := True;
@@ -901,6 +934,28 @@ begin
     else if CLI = '%' then
     begin
       populateEnvironmentStrings;
+    end
+    else if CLI = 'hexview' then
+    begin
+      var curFile := StatusBar1.Panels[0].Text;
+      if FileExists(curFile) then
+      begin
+        if Assigned(fHexBuffer) then
+          fHexBuffer.Free;
+        fHexBuffer := TFileStream.Create(curFile, fmOpenRead);
+        try
+          Panel1.Caption := 'Hex: ' + curFile;
+          btnFileHandler.Visible := True;
+          ACLHexView1.Visible := True;
+          ACLHexView1.StyleScrollBox.Reset;
+          ACLHexView1.SetSelection(0, 0);
+          ACLHexView1.Data := nil;
+          ACLHexView1.FullRefresh;
+          ACLHexView1.Data := fHexBuffer;
+        finally
+          //fHexBuffer.Free; //we should keep this open so the hex viewer will read on demand
+        end;
+      end;
     end
     else if CLI = 'preview' then
     begin
@@ -1029,22 +1084,19 @@ begin
             var basePath := lastExplorerPath;
             if DirectoryExists(CurrentFile) then
               basePath := CurrentFile;
-            DosCommand1.CurrentDir := basePath;
-    //        DosCommand1.CommandLine := 'cmd.exe /c ' + ButtonedEdit1.Text;
-    //        DosCommand1.Execute;
-            //ProcessDosCommand(Self, PChar('cmd.exe /c ' + CLI));
 
-            args := TStringList.Create;
-            args.Add('/c');
-//            args.Add('chcp');
-//            args.Add('65001');
-//            args.Add('&');
+// Temporary disabled to try DOSCommand Instead
+//            args := TStringList.Create;
+//            args.Add('/c');
+////            args.Add('chcp');
+////            args.Add('65001');
+////            args.Add('&');
 
             if OpenURL1.Enabled then //git folder detected
             begin
               if (CLI = 'gp') or CLI.Contains('-pull') then
               begin
-                ButtonedEdit1.Text := 'git pull';
+                ButtonedEdit1.Text := 'git -c fetch.parallel=0 -c submodule.fetchjobs=0 pull --progress "origin"';
               end
               else if (CLI = 'gu') or CLI.Contains('-url') then
               begin
@@ -1060,12 +1112,17 @@ begin
               end;
               CLI := ButtonedEdit1.Text;
             end;
-            args.Add(CLI);
-            RunProcess('cmd.exe', PChar(basePath), args);
-            Toast('Command finished!', '','S');
-            BCEditor1.GotoLineAndCenter(BCEditor1.Lines.Count);
-            args.Free;
-            args := nil;
+//            args.Add(CLI);
+//            RunProcess('cmd.exe', PChar(basePath), args);
+//            Toast('Command finished!', '','S');
+//            BCEditor1.GotoLineAndCenter(BCEditor1.Lines.Count);
+//            args.Free;
+//            args := nil;
+
+            DosCommand1.CurrentDir := basePath;
+    //        DosCommand1.CommandLine := 'cmd.exe /c ' + ButtonedEdit1.Text;
+    //        DosCommand1.Execute;
+            ProcessDosCommand(Self, PChar('cmd.exe /c ' + CLI));
           end;
         end
       except
@@ -1248,24 +1305,31 @@ end;
 procedure TForm1.DosCommand1NewLine(ASender: TObject; const ANewLine: string;
   AOutputType: TOutputType);
 begin
-//  AOutputType := otEntireLine;
-//  BCEditor1.Lines.Add(ANewLine);
-//  BCEditor1.Text := BCEditor1.Text +#13#10+ ANewLine;
-  FCommandOutput.Add(ANewLine);
-  BCEditor1.BeginUpdate;
-  BCEditor1.Lines :=  FCommandOutput;
-//  KHexEditor1.ExecuteCommand(ecInsertString, PChar(ANewLine));
-//  BCEditor1.Perform(EM_SCROLL, SB_LINEDOWN, 0);
-  BCEditor1.GotoLineAndCenter(BCEditor1.Lines.Count);
-  BCEditor1.EndUpdate;
-  Application.ProcessMessages;
+////  AOutputType := otEntireLine;
+////  BCEditor1.Lines.Add(ANewLine);
+////  BCEditor1.Text := BCEditor1.Text +#13#10+ ANewLine;
+//  FCommandOutput.Add(ANewLine);
+//  BCEditor1.BeginUpdate;
+//  BCEditor1.Lines :=  FCommandOutput;
+////  KHexEditor1.ExecuteCommand(ecInsertString, PChar(ANewLine));
+////  BCEditor1.Perform(EM_SCROLL, SB_LINEDOWN, 0);
+//  BCEditor1.GotoLineAndCenter(BCEditor1.Lines.Count);
+//  BCEditor1.EndUpdate;
+//  Application.ProcessMessages;
+
+  FSyncLock.Enter;
+  try
+    FOutputBuffer.Add(ANewLine);
+  finally
+    FSyncLock.Leave;
+  end;
 end;
 
 procedure TForm1.DosCommand1Terminated(Sender: TObject);
 begin
   BCEditor1.Lines.Add('¡Completed process!');
-//  ActivityIndicator1.Animate := False;
-//  ActivityIndicator1.Visible := False;
+  ActivityIndicator1.Animate := False;
+  ActivityIndicator1.Visible := False;
 //  BCEditor1.Lines := FCommandOutput;
   BCEditor1.GotoLineAndCenter(BCEditor1.Lines.Count);
   FCommandOutput.Clear;
@@ -1304,11 +1368,7 @@ end;
 
 procedure TForm1.FormCreate(Sender: TObject);
 begin
-  UpdateStyle;
 
-  EnableImmersiveDarkMode(True);
-  UseImmersiveDarkMode(Handle, True); //my function to dark mode titlebar win11+
-  EnableNCShadow(Handle);
   AllowSetForegroundWindow(GetCurrentProcessId);
 
   if not StartHook then
@@ -1319,7 +1379,7 @@ begin
 
   KeyPreview := True;
 
-//  ActivityIndicator1.Visible := False;
+  ActivityIndicator1.Visible := False;
 
   lstExplorerPath := TStringList.Create;
   lstExplorerWnd := TStringList.Create;
@@ -1352,13 +1412,19 @@ begin
 
   mnuAutoStart.Checked := AppAutoStart1.IsStartupEnabled;
 
+  // Speeding up the DOSCommand output
+  FOutputBuffer := TStringList.Create;
+  FSyncLock := TCriticalSection.Create;
+
 //  SetWindowColorModeAsSystem;
-  if SystemIsDarkMode then
-    SetDarkMode(Handle, True);
+  UpdateTheme;
 end;
 
 procedure TForm1.FormDestroy(Sender: TObject);
 begin
+  FSyncLock.Free;
+  FOutputBuffer.Free;
+
   ShutdownLibgit2;
 //  git_libgit2_shutdown;
 
@@ -1956,7 +2022,7 @@ begin
   EsImage1.Picture.Assign(nil);
 
   StatusBar1.Panels[0].Text := '';
-  if not FPinned then  
+  if not FPinned then
   Hide;
 end;
 
@@ -1998,6 +2064,7 @@ begin
     Add('list');
     Add('center');
     Add('cmd');
+    Add('hexview');
     Add('preview');
     Add('tojpg');
     EndUpdate;
@@ -2139,8 +2206,8 @@ begin
 
     DosCommand1.CommandLine := ACommand;
     DosCommand1.Execute;
-//    ActivityIndicator1.Visible := True;
-//    ActivityIndicator1.Animate := DosCommand1.IsRunning;
+    ActivityIndicator1.Visible := True;
+    ActivityIndicator1.Animate := DosCommand1.IsRunning;
     except
       on e:ECreateProcessError do
       begin
@@ -2300,6 +2367,38 @@ begin
   SetForegroundWindow(AWnd);
 end;
 
+procedure TForm1.tmrOutputTimer(Sender: TObject);
+var
+  tmpbuf: TStringList;
+begin
+  if not Assigned(FOutputBuffer) then Exit;
+
+  if FOutputBuffer.Count = 0 then
+    Exit;
+
+  tmpbuf := TStringList.Create;
+  try
+    FSyncLock.Enter;
+    try
+      tmpbuf.Assign(FOutputBuffer);
+      FOutputBuffer.Clear;
+    finally
+      FSyncLock.Leave;
+    end;
+
+    BCEditor1.Lines.BeginUpdate;
+    try
+      BCEditor1.Lines.AddStrings(tmpbuf);
+      BCEditor1.GotoLineAndCenter(BCEditor1.Lines.Count - 1);
+      BCEditor1.Refresh;
+    finally
+      BCEditor1.Lines.EndUpdate;
+    end;
+  finally
+    tmpbuf.Free;
+  end;
+end;
+
 procedure TForm1.tmrToastTimer(Sender: TObject);
 begin
   StatusBar1.Panels[0].Text := CurrentFile;
@@ -2431,7 +2530,7 @@ const
   BGCOLOR = $00191919;//$00362A28;
 begin
   //on light
-  if SystemIsDarkMode then
+  if IsWindowsDarkMode then
   begin
     AllowDarkModeForApp(True);
     Form1.Color := RGB(38, 40, 4);
@@ -2478,6 +2577,7 @@ begin
     end;
 
     rkSmartPath1.Font.Color := clWhite;
+    TStyleManager.TrySetStyle('Windows11 Modern Dark');
   end
   else
   begin
@@ -2487,6 +2587,26 @@ begin
     TStyleManager.TrySetStyle('Windows');
   end;
 
+end;
+
+procedure TForm1.UpdateTheme;
+begin
+  UpdateStyle;
+
+//  EnableImmersiveDarkMode(True);
+//  UseImmersiveDarkMode(Handle, True); //my function to dark mode titlebar win11+
+//  EnableNCShadow(Handle);
+
+  if IsWindowsDarkMode then
+  begin
+    ACLApplicationController1.DarkMode := TACLBoolean.True;
+    SetDarkMode(Handle, True);
+  end
+  else
+  begin
+    ACLApplicationController1.DarkMode := TACLBoolean.False;
+    SetDarkMode(Handle, False);
+  end;
 end;
 
 procedure TForm1.RefreshEnvironmentVariables;
@@ -2548,6 +2668,16 @@ begin
 //    ShowMessage('Environment refreshed!');
   end;
   inherited;
+end;
+
+procedure TForm1.WndProc(var Message: TMessage);
+begin
+  inherited;
+
+  if Message.Msg = WM_SETTINGCHANGE then
+  begin
+    UpdateTheme;
+  end;
 end;
 
 { ThumbThread }
@@ -2808,12 +2938,23 @@ begin
   FACOptions := [acAutoSuggest, acUpDownKeyDropsList];
 end;
 
+class constructor TButtonedEdit.Create;
+begin
+  if not TStyleManager.IsCustomStyleActive then
+  begin
+    Winapi.Windows.Beep(400, 1000);
+    TCustomStyleEngine.UnRegisterSysStyleHook('SysListView32', TSysListViewStyleHook);
+    TCustomStyleEngine.RegisterSysStyleHook('SysListView32', TSysListViewStyleHook);
+  end;
+end;
+
 procedure TButtonedEdit.CreateWnd;
 var
   Dummy: IUnknown;
   Strings: IEnumString;
   FuzzyMatchList: TStringList;
   FuzzyMatcher: TFuzzyStringMatcher;
+  AutocompleteEx: IAutoComplete2;
 begin
   inherited;
 //  SetWindowTheme(Handle, PChar('DarkMode_Explorer'), nil);
@@ -2824,6 +2965,11 @@ begin
       if (Dummy <> nil) and
         (Dummy.QueryInterface(IID_IAutoComplete, FAutoComplete) = S_OK) then
       begin
+        //https://learn.microsoft.com/en-us/windows/win32/api/shldisp/ne-shldisp-autocompleteoptions
+        // set auto completion options
+        if Dummy.QueryInterface(IID_IAutoComplete2, AutoCompleteEx) = S_OK then
+          AutoCompleteEx.SetOptions(ACO_AUTOSUGGEST or ACO_AUTOAPPEND or ACO_UPDOWNKEYDROPSLIST);
+
         case FACSource of
 //          acsList: ;
           //It is used to manage the history of autocomplete entries.
@@ -2831,7 +2977,10 @@ begin
           //It is used to manage the MRU autocomplete entries.
           acsMRU: Strings := CreateComObject(CLSID_ACLMRU) as IEnumString;
           //It is used to manage autocomplete entries specific to shell folders.
-          acsShell: Strings := CreateComObject(CLSID_ACListISF) as IEnumString;
+          acsShell:
+          begin
+            Strings := CreateComObject(CLSID_ACListISF) as IEnumString;
+          end
           else
           begin
             // Use FuzzyStringMatch to perform fuzzy string matching
@@ -2848,6 +2997,8 @@ begin
         begin
           SetACEnabled(FACEnabled);
           SetACOptions(FACOptions);
+//          TCustomStyleEngine.RegisterSysStyleHook('SysListView32', TSysListViewStyleHook);
+//          TCustomStyleEngine.RegisterSysStyleHook('SysListView32', TSysListViewStyleHook);
         end;
       end;
     except
