@@ -161,25 +161,6 @@ object Form1: TForm1
       AutoSize = True
     end
   end
-  object rkView1: TrkView
-    Left = 592
-    Top = 64
-    Width = 137
-    Height = 211
-    ShowHint = True
-    Visible = False
-    TabOrder = 7
-    HotTracking = True
-    Font.Charset = DEFAULT_CHARSET
-    Font.Color = clWindowText
-    Font.Height = -11
-    Font.Name = 'Tahoma'
-    Font.Style = []
-    CellWidth = 0
-    CellSelect = True
-    Columns = ''
-    ColorSel = 14120960
-  end
   object pnlTop: TPanel
     Left = 0
     Top = 61
@@ -351,26 +332,32 @@ object Form1: TForm1
     end
   end
   object ListBox1: TListBox
-    Left = 622
-    Top = 241
-    Width = 712
-    Height = 225
+    Left = 0
+    Top = 172
+    Width = 530
+    Height = 197
+    Align = alClient
     Font.Charset = ANSI_CHARSET
     Font.Color = clWindowText
     Font.Height = -12
     Font.Name = 'Delugia Nerd Font'
     Font.Style = []
     ParentFont = False
-    TabOrder = 8
+    TabOrder = 7
     Visible = False
     OnDblClick = ListBox1DblClick
     OnKeyUp = ListBox1KeyUp
+    ExplicitLeft = 8
+    ExplicitTop = 144
+    ExplicitWidth = 712
+    ExplicitHeight = 225
   end
   object VirtualMultiPathExplorerEasyListview1: TVirtualMultiPathExplorerEasyListview
-    Left = 648
-    Top = 293
-    Width = 562
-    Height = 185
+    Left = 0
+    Top = 172
+    Width = 530
+    Height = 197
+    Align = alClient
     CellSizes.ReportThumb.Height = 112
     CellSizes.ReportThumb.Width = 94
     CompressedFile.Color = clRed
@@ -401,6 +388,10 @@ object Form1: TForm1
     TabOrder = 4
     ThumbsManager.StorageFilename = 'Thumbnails.album'
     Visible = False
+    ExplicitLeft = 8
+    ExplicitTop = 178
+    ExplicitWidth = 562
+    ExplicitHeight = 185
   end
   object pnlTitle: TPanel
     Left = 0
@@ -427,11 +418,26 @@ object Form1: TForm1
     Width = 530
     Height = 197
     Align = alClient
-    TabOrder = 9
+    TabOrder = 8
     Visible = False
     ExplicitTop = 173
     ExplicitWidth = 320
     ExplicitHeight = 240
+  end
+  object ACLShellTreeView1: TACLShellTreeView
+    Left = 0
+    Top = 172
+    Width = 530
+    Height = 197
+    Align = alClient
+    ParentShowHint = False
+    ShowHint = False
+    TabOrder = 9
+    Visible = False
+    OnKeyPress = ACLShellTreeView1KeyPress
+    OptionsView.ShowFavorites = True
+    OnDblClick = ACLShellTreeView1DblClick
+    ExplicitTop = 173
   end
   object DosCommand1: TDosCommand
     InputToOutput = True

@@ -19,11 +19,16 @@ uses
   ACL.UI.Controls.Labels, ACL.UI.Controls.ActivityIndicator,
   Vcl.VirtualImageList, Vcl.BaseImageCollection, Vcl.ImageCollection,
   ACL.UI.Controls.CompoundControl, ACL.UI.Controls.HexView, ACL.Classes,
-  ACL.UI.Application;
+  ACL.UI.Application, ACL.UI.Controls.MagnifierGlass,
+  ACL.UI.Controls.ColorPicker, ACL.UI.Controls.Buttons,
+  ACL.UI.Dialogs.ColorPicker, ACL.UI.Controls.TreeList,
+  ACL.UI.Controls.ShellTreeView;
 
 const
-  KeyEvent = WM_USER + 1;
-  KeyEventAll = WM_USER + 2;
+  KeyEvent = WM_USER + 11;
+  KeyEventAll = WM_USER + 12;
+  KeyEventUpdatePath = WM_USER + 13;
+  KeyEventPickPaths = WM_USER + 14;
   CM_UpdateView = WM_USER + 2;
   CM_Progress   = WM_USER + 3;
   IID_IImageList: TGUID = '{46EB5926-582E-4017-9FDF-E8998DAA0950}';
@@ -149,7 +154,6 @@ type
     pnlPreview: TPanel;
     Splitter1: TSplitter;
     EsImage1: TEsImage;
-    rkView1: TrkView;
     Image1: TImage;
     SynUNIXShellScriptSyn1: TSynUNIXShellScriptSyn;
     ListBox1: TListBox;
@@ -186,6 +190,7 @@ type
     ACLHexView1: TACLHexView;
     ACLApplicationController1: TACLApplicationController;
     btnFileHandler: TSpeedButton;
+    ACLShellTreeView1: TACLShellTreeView;
     procedure ButtonedEdit1Enter(Sender: TObject);
     procedure ButtonedEdit1KeyUp(Sender: TObject; var Key: Word;
       Shift: TShiftState);
@@ -220,6 +225,8 @@ type
       LinkType: TSysLinkType);
     procedure tmrOutputTimer(Sender: TObject);
     procedure btnFileHandlerClick(Sender: TObject);
+    procedure ACLShellTreeView1DblClick(Sender: TObject);
+    procedure ACLShellTreeView1KeyPress(Sender: TObject; var Key: Char);
   private
     { Private declarations }
     FOutputBuffer: TStringList;
@@ -245,6 +252,8 @@ type
     function ListExplorerInstances:Integer;
     procedure KeyEventHandler(var Msg: TMessage); message KeyEvent;
     procedure KeyEventHandlerAll(var Msg: TMessage); message KeyEventAll;
+    procedure KeyEventUpdatePath(var Msg: TMessage); message KeyEventUpdatePath;
+    procedure KeyEventPickPaths(var Msg: TMessage); message KeyEventPickPaths;
     procedure OnFocusLost(Sender: TObject);
 
     function GetExplorerAddressBarRect(AHandle: HWND): TRect;
@@ -842,6 +851,17 @@ begin
 end;
 
 { Form1 }
+
+procedure TForm1.ACLShellTreeView1DblClick(Sender: TObject);
+begin
+  ShellExecute(0, 'OPEN', PChar(ACLShellTreeView1.GetFullPath(ACLShellTreeView1.FocusedNode)), nil, nil, SW_SHOWNORMAL);
+end;
+
+procedure TForm1.ACLShellTreeView1KeyPress(Sender: TObject; var Key: Char);
+begin
+  if Key = #13 then
+    ShellExecute(0, 'OPEN', PChar(ACLShellTreeView1.GetFullPath(ACLShellTreeView1.FocusedNode)), nil, nil, SW_SHOWNORMAL);
+end;
 
 procedure TForm1.actPath2ClipExecute(Sender: TObject);
 begin
@@ -1534,6 +1554,7 @@ begin
 
   if not Visible then
   begin
+    ACLShellTreeView1.Visible := False;
     var rct: TRect;
     rct := GetExplorerAddressBarRect(lastExplorerHandle);
     Left := rct.Left;
@@ -1667,6 +1688,7 @@ begin
 
   if not Visible then
   begin
+    ACLShellTreeView1.Visible := False;
 //    SwitchToThisWindow(GetDesktopWindow, True);
     Show;
     HActiveWindow := GetForegroundWindow();
@@ -1758,6 +1780,278 @@ begin
 //    SwitchToThisWindow(Handle, True);
     Hide;
   end;
+end;
+
+procedure TForm1.KeyEventPickPaths(var Msg: TMessage);
+var
+  I: Integer;
+  command: String;
+  Ret: Integer;
+
+  HActiveWindow: HWND;
+  HForegroundThread, HAppThread: DWORD;
+  FClientId: DWORD;
+
+begin
+  command := PChar(Msg.LParam);
+  lastExplorerHandle := StrToInt(command);
+  lastExplorerPath := '';
+
+  if not Visible then
+  begin
+    Show;
+    HActiveWindow := GetForegroundWindow();
+    HForegroundThread := GetWindowThreadProcessId(HActiveWindow, @FClientId);
+    AllowSetForegroundWindow(FClientId);
+
+    HAppThread := GetCurrentThreadId;
+
+    if not SetForegroundWindow(Handle) then
+      SwitchToThisWindow(GetDesktopWindow, True);
+
+    // magic part to switch correctly to our window
+    if HForegroundThread <> HAppThread then
+    begin
+      AttachThreadInput(HForegroundThread, HAppThread, True);
+      BringWindowToTop(Handle);
+      Winapi.Windows.SetFocus(Handle);
+      AttachThreadInput(HForegroundThread, HAppThread, False);
+    end;
+
+    var rct: TRect;
+    Winapi.Windows.GetWindowRect(HActiveWindow, rct);
+    SetWindowPos(Handle, HWND_TOP, 0, 0, 0, 0, {SWP_ASYNCWINDOWPOS or }SWP_NOMOVE or SWP_NOSIZE or SWP_SHOWWINDOW);
+    // center to current window, otherwise to monitors
+    var nLeft := rct.Left + (rct.Width - Width) div 2;
+    var nTop := rct.Top + (rct.Height - Height) div 2;
+    if nLeft < 0 then
+      Left := (Screen.Width - Width) div 2
+    else
+      Left := nLeft;
+    if nTop < 0 then
+      Top := (Screen.Height - Height) div 2
+    else
+      Top := nTop;
+
+    Ret := ListExplorerInstances;
+
+    for I := 0 to lstExplorerWnd.Count - 1 do
+    begin
+      if lstExplorerWnd[i] = IntToStr(lastExplorerHandle) then
+      begin
+        lastExplorerPath := lstExplorerPath[I];
+        StatusBar1.Panels[0].Text := lstExplorerItem[i];
+        if FileExists(lstExplorerItem[i]) then
+          ShowPreview(lstExplorerItem[i]);
+        CurrentFile := lstExplorerItem[i];
+      end;
+    end;
+
+    if DirectoryExists(StatusBar1.Panels[0].Text) then
+      rkSmartPath1.Path := StatusBar1.Panels[0].Text
+    else if DirectoryExists(ExtractFilePath(StatusBar1.Panels[0].Text)) then
+    begin
+         rkSmartPath1.Path := ExtractFilePath(StatusBar1.Panels[0].Text);
+    end;
+
+    if IsGitRepository(rkSmartPath1.Path) then
+    begin
+      ButtonedEdit1.LeftButton.ImageIndex := 3
+    end
+    else
+      ButtonedEdit1.LeftButton.ImageIndex := 0;
+
+    CurrentDir := rkSmartPath1.Path;
+    GitUrl := GetRemoteURL(rkSmartPath1.Path, 'origin');
+    if Pos('http', LowerCase(GitUrl)) = 1 then
+      OpenURL1.Enabled := True
+    else
+      OpenURL1.Enabled := False;
+
+    // Show file/folder picker
+    ACLShellTreeView1.Visible := True;
+    ACLShellTreeView1.SetFocus;
+
+  end
+  else
+  begin
+    Hide;
+  end;
+end;
+
+
+var
+ChildEditHwnd: HWND = 0;
+function EnumChildEditProc(ChildWnd: HWND; lParam: LPARAM): BOOL; stdcall;
+var
+  ClassName: PChar;
+  Buffer: array[0..255] of Char;
+  LWnd: HWND;
+begin
+  GetClassName(ChildWnd, Buffer, SizeOf(Buffer) div SizeOf(Char));
+  ClassName := PChar(lParam);
+
+  // If the class name matches, return the window handle
+  if CompareText(Buffer, ClassName) = 0 then
+  begin
+    // We now need to find if a 'ComboBox' classname child exists with a child with classname 'Edit', which is the Filename Edit box
+    LWnd := FindWindowEx(ChildWnd, 0, 'ComboBox', nil);
+    if LWnd <> 0 then
+    begin
+      ChildEditHwnd := LWnd;
+      LWnd := FindWindowEx(LWnd, 0, 'Edit', nil);
+      if LWnd <> 0 then
+      begin
+        Result := FALSE;  // Found a matching control
+        Exit;
+      end
+      else
+        ChildEditHwnd := 0;
+    end;
+  end;
+  Result := TRUE; // Continue enumeration
+end;
+
+procedure TForm1.KeyEventUpdatePath(var Msg: TMessage);
+var
+  I: Integer;
+  command: String;
+  Ret: Integer;
+
+  HActiveWindow: HWND;
+  HForegroundThread, HAppThread: DWORD;
+  FClientId: DWORD;
+  AppClassName: array[0..255] of char;
+  CtrlPressed, AltPressed, UpArrowPressed: Boolean;
+begin
+  if not DirectoryExists(CurrentDir) then Exit;
+
+  ACLShellTreeView1.Visible := False;
+
+  command := PChar(Msg.LParam);
+  lastExplorerHandle := StrToInt(command);
+  lastExplorerPath := '';
+
+  HActiveWindow := GetForegroundWindow();
+  GetClassName(HActiveWindow, AppClassName, 255);
+//    ShowMessage(AppClassName);
+  if AppClassName = '#32770' then
+  begin
+    //Winapi.Windows.Beep(400,1000); // annoying sound while the user release the hotkey to proceed
+    repeat
+      CtrlPressed := GetAsyncKeyState(VK_CONTROL) < 0;
+      AltPressed := GetAsyncKeyState(VK_MENU) < 0;
+
+      // Sleep to prevent high CPU usage while waiting
+      Sleep(10);
+    until not CtrlPressed and not AltPressed; // Wait until both Ctrl and Alt are released
+    // Step 1: Press down the Ctrl key (KEYEVENTF_KEYDOWN)
+    keybd_event(VK_CONTROL, 0, 0, 0);
+
+    // Step 2: Press down the L key (KEYEVENTF_KEYDOWN)
+    keybd_event(Ord('L'), 0, 0, 0);
+
+    // Step 3: Release the L key (KEYEVENTF_KEYUP)
+    keybd_event(Ord('L'), 0, KEYEVENTF_KEYUP, 0);
+
+    // Step 4: Release the Ctrl key (KEYEVENTF_KEYUP)
+    keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
+
+    // Find the Directory Path Edit Box
+    var edFolder := FindWindowEx(HActiveWindow, 0, 'WorkerW', nil);
+      if edFolder <> 0 then
+        edFolder := FindWindowEx(edFolder, 0, 'ReBarWindow32', nil);
+          if edFolder <> 0 then
+            edFolder := FindWindowEx(edFolder, 0, 'Address Band Root', nil);
+              if edFolder <> 0 then
+                edFolder := FindWindowEx(edFolder, 0, 'msctls_progress32', nil);
+                  if edFolder <> 0 then
+                    edFolder := FindWindowEx(edFolder, 0, 'ComboBoxEx32', nil);
+                      if edFolder <> 0 then
+                        edFolder := FindWindowEx(edFolder, 0, 'ComboBox', nil);
+                          if edFolder <> 0 then
+                            edFolder := FindWindowEx(edFolder, 0, 'Edit', nil);
+                              if edFolder <> 0 then
+                              begin
+                                SendMessage(edFolder, WM_SETTEXT, 0, LPARAM(PChar(CurrentDir)));
+                                //Winapi.Windows.SetFocus(edFolder);
+                                PostMessage(edFolder, WM_SETFOCUS, 0, 0);
+                                keybd_event(VK_RETURN, 0, 0, 0);
+                                // Step 4: Release the Ctrl key (KEYEVENTF_KEYUP)
+                                keybd_event(VK_RETURN, 0, KEYEVENTF_KEYUP, 0);
+                              end;
+
+    Sleep(100); // it seems to be required as sometimes changing directory fails
+    // find the Filename Edit Box in Open Dialog
+    var edFilename := FindWindowEx(HActiveWindow, 0, 'ComboBoxEx32', nil);
+    if edFilename <> 0 then
+    begin
+      PostMessage(edFilename, WM_SETFOCUS, 0, 0);
+      edFilename := FindWindowEx(edFilename, 0, 'ComboBox', nil);
+      if edFilename <> 0 then
+        edFilename := FindWindowEx(edFilename, 0, 'Edit', nil);
+        if edFilename <> 0 then
+        begin
+          //SendMessage(edFilename, WM_SETTEXT, 0, LPARAM(PChar(CurrentDir)));
+          // these won't work directly, its parent ComboBoxEx32 is enough
+          //Winapi.Windows.SetFocus(edFilename); // SetFocus seems not to work
+          //PostMessage(edFilename, WM_SETFOCUS, 0, 0); // This might work, but as said above, its parent is the key to focus
+        end;
+
+    end
+    // find the Filename Edit Box in Save Dialog
+    else
+    begin
+      edFilename := FindWindowEx(HActiveWindow, 0, 'DUIViewWndClassName', nil);
+      if edFilename <> 0 then
+        edFilename := FindWindowEx(edFilename, 0, 'DirectUIHWND', nil);
+        if edFilename <> 0 then
+          // there are other FloatNotifySink, we need to use EnumChildWindows
+          EnumChildWindows(edFilename, @EnumChildEditProc, LPARAM(PChar('FloatNotifySink'))); // updates global ChildEditHwnd variable if ComboBox is found inside
+          //edFilename := FindWindowEx(edFilename, 0, 'FloatNotifySink', nil); // this way only finds the first one that holds the Save button, which we won't want
+          if ChildEditHwnd <> 0 then
+            //edFilename := FindWindowEx(edFilename, 0, 'ComboBox', nil);
+            edFilename := ChildEditHwnd;
+            SendMessage(edFilename, WM_SETFOCUS, 0, 0);
+//            if edFilename <> 0 then
+//              edFilename := FindWindowEx(edFilename, 0, 'Edit', nil);
+//              if edFilename <> 0 then
+//              begin
+//                //SendMessage(edFilename, WM_SETTEXT, 0, LPARAM(PChar(CurrentDir)));
+//              end;
+    end;
+  end;
+  exit;
+
+  HForegroundThread := GetWindowThreadProcessId(HActiveWindow, @FClientId);
+  AllowSetForegroundWindow(FClientId);
+
+  HAppThread := GetCurrentThreadId;
+
+  Ret := ListExplorerInstances;
+
+
+  for I := 0 to lstExplorerWnd.Count - 1 do
+  begin
+    if lstExplorerWnd[i] = IntToStr(lastExplorerHandle) then
+    begin
+      lastExplorerPath := lstExplorerPath[I];
+      StatusBar1.Panels[0].Text := lstExplorerItem[i];
+
+      if FileExists(lstExplorerItem[i]) then
+        ShowPreview(lstExplorerItem[i]);
+      CurrentFile := lstExplorerItem[i];
+    end;
+  end;
+
+  if DirectoryExists(StatusBar1.Panels[0].Text) then
+    rkSmartPath1.Path := StatusBar1.Panels[0].Text
+  else if DirectoryExists(ExtractFilePath(StatusBar1.Panels[0].Text)) then
+  begin
+    rkSmartPath1.Path := ExtractFilePath(StatusBar1.Panels[0].Text);
+  end;
+
+  CurrentDir := rkSmartPath1.Path;
 end;
 
 // Lists explorer instances which has items visible, ignores special directories
