@@ -17,8 +17,10 @@ uses
   Messages;
 
 const
-  KeyEvent = WM_USER + 1;
-  KeyEventAll = WM_USER + 2;
+  KeyEvent = WM_USER + 11;
+  KeyEventAll = WM_USER + 12;
+  KeyEventUpdatePath = WM_USER + 13;
+  KeyEventPickPaths = WM_USER + 14;
   LLKHF_ALTDOWN = $20;
   LLKHF_UP = $80;
 
@@ -167,6 +169,9 @@ begin
 
       if (wParam = WM_KEYDOWN) or (wParam = WM_SYSKEYDOWN) then
       begin
+        if (hs^.vkCode = VK_MENU) or (hs^.vkCode = VK_LMENU) or (hs^.vkCode = VK_RMENU) then
+          AltPressed := True;
+
 //        OutputDebugString(PChar(IntToStr(hs^.vkcode)));
         if (hs^.vkCode = VK_SHIFT) or (hs^.vkCode = VK_LSHIFT) or (hs^.vkCode = VK_RSHIFT) then
         begin
@@ -196,6 +201,8 @@ begin
 //        CtrlPressed := GetAsyncKeyState(VK_CONTROL) and $8000 <> 0;
 //        ShiftPressed := GetAsyncKeyState(VK_SHIFT) and $8000 <> 0;
 //        AltPressed := GetAsyncKeyState(VK_MENU) and $8000 <> 0;
+        if (hs^.vkCode = VK_MENU) or (hs^.vkCode = VK_LMENU) or (hs^.vkCode = VK_RMENU) then
+          AltPressed := False;
 
         if (hs^.vkCode = VK_SHIFT) or (hs^.vkCode = VK_LSHIFT) or (hs^.vkCode = VK_RSHIFT) then
         begin
@@ -285,6 +292,31 @@ begin
           begin
             command := IntToStr(GetForegroundWindow);
             PostMessage(ParentHandle, KeyEventAll, wParam, Windows.LPARAM(PChar(command)));
+          end;
+        end
+
+        // Ctrl+Alt+UpArrow if Open Dialog or Save Dialog window detected to assign last explorer's path
+        else if ((hs^.vkCode = VK_UP)
+        and AltPressed and CtrlPressed)
+        then
+        begin
+          ParentHandle := FindWindow('ExplorerCommandWnd', nil);
+          if ParentHandle > 0 then
+          begin
+            command := IntToStr(GetForegroundWindow);
+            PostMessage(ParentHandle, KeyEventUpdatePath, wParam, Windows.LPARAM(PChar(command)));
+          end;
+        end
+        // Ctrl+Alt+DownArrow it will show a list of custom paths to pick either to assign to explorer's current path or open/save dialog even to open in custom app like terminal
+        else if ((hs^.vkCode = VK_DOWN)
+        and AltPressed and CtrlPressed)
+        then
+        begin
+          ParentHandle := FindWindow('ExplorerCommandWnd', nil);
+          if ParentHandle > 0 then
+          begin
+            command := IntToStr(GetForegroundWindow);
+            PostMessage(ParentHandle, KeyEventPickPaths, wParam, Windows.LPARAM(PChar(command)));
           end;
         end;
 
